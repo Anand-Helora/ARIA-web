@@ -178,7 +178,8 @@ h2 {
   background: rgba(38, 116, 92, 0.14);
 }
 
-#keyboard-indicator {
+#keyboard-indicator,
+#voice-output-indicator {
   white-space: nowrap;
 }
 
@@ -711,6 +712,68 @@ dialog label {
   font-size: 0.83rem;
 }
 
+.attachment-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.attachment-toolbar > span {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.image-attachment-card {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid rgba(131, 230, 239, 0.26);
+  border-radius: 16px;
+  background: rgba(7, 25, 34, 0.72);
+}
+
+.image-attachment-card[hidden] {
+  display: none;
+}
+
+.image-attachment-card img {
+  display: block;
+  width: 92px;
+  height: 68px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: #02090d;
+}
+
+.image-attachment-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.image-attachment-copy strong,
+.image-attachment-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-attachment-copy strong {
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.image-attachment-copy span {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
 .command-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -781,7 +844,7 @@ input::placeholder {
 }
 
 .preview-heading span {
-  color: var(--success);
+  color: var(--warning);
   font-size: 0.82rem;
 }
 
@@ -1041,6 +1104,29 @@ code {
 
   .memory-proposal-actions button,
   .brain-memory-item-heading button {
+    width: 100%;
+  }
+
+  .attachment-toolbar {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .attachment-toolbar button {
+    width: 100%;
+  }
+
+  .image-attachment-card {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+
+  .image-attachment-card img {
+    width: 76px;
+    height: 58px;
+  }
+
+  .image-attachment-card button {
+    grid-column: 1 / -1;
     width: 100%;
   }
 }

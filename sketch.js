@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "0.7.3",
+  version: "0.8.0",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -10,11 +10,14 @@ const config = window.ARIA_CONFIG || {
   speechRequestTimeoutMs: 45000,
   memoryRequestTimeoutMs: 30000,
   maxHistoryMessages: 20,
+  maxImageDimension: 1440,
+  maxImageDataUrlChars: 2500000,
+  imageJpegQuality: 0.78,
   localStorageKey: "aria.web.conversation.v0.3",
   sessionTokenKey: "aria.web.access-token.session.v0.3",
   conversationVisibilityKey: "aria.web.conversation-visible.v0.6",
   textInputVisibilityKey: "aria.web.text-input-visible.v0.7.2",
-  autoSpeakKey: "aria.web.auto-speak.v0.6",
+  autoSpeakKey: "aria.web.voice-output-enabled.v0.8",
   speechRateKey: "aria.web.speech-rate.v0.6",
   speechVoiceKey: "aria.web.speech-voice.v0.6.1"
 };
@@ -41,9 +44,11 @@ const ariaState = {
   remoteAudio: null,
   remoteAudioUrl: "",
   speechRequestController: null,
-  autoSpeak: true,
+  autoSpeak: false,
   speechRate: 1,
   preferredVoiceName: "openai:coral",
+  pendingImage: null,
+  imageBusy: false,
   pendingMemory: null,
   savedMemories: [],
   memoryBusy: false,
@@ -136,6 +141,22 @@ function initializeInterface() {
   getElement("speech-voice-select").addEventListener("change", saveVoiceSettings);
   getElement("share-button").addEventListener("click", startScreenShare);
   getElement("stop-button").addEventListener("click", () => stopScreenShare(true));
+  getElement("voice-output-indicator").addEventListener("click", toggleVoiceOutput);
+  getElement("add-image-button").addEventListener("click", () =>
+    getElement("image-file-input").click()
+  );
+  getElement("image-file-input").addEventListener(
+    "change",
+    handleImageFileSelection
+  );
+  getElement("capture-screen-button").addEventListener(
+    "click",
+    captureSharedScreen
+  );
+  getElement("remove-image-button").addEventListener(
+    "click",
+    () => clearPendingImage(true)
+  );
   getElement("reset-button").addEventListener("click", resetAriaState);
   getElement("clear-button").addEventListener("click", clearConversation);
   getElement("toggle-conversation-button").addEventListener("click", toggleConversationVisibility);
@@ -183,10 +204,21 @@ async function handleCommand(options = {}) {
 
   const source = options.source === "voice" ? "voice" : "text";
   const input = getElement("command-input");
-  const command = input.value.trim();
+  const imageToSend = ariaState.pendingImage;
+  const command =
+    input.value.trim() ||
+    (
+      imageToSend
+        ? "Analyse précisément l’image jointe. Décris ce qui est visible, relève les éléments importants et signale les détails incertains."
+        : ""
+    );
 
   if (!command) {
-    setState("error", "Instruction vide.", "Écris ou dicte une demande avant de l’envoyer.");
+    setState(
+      "error",
+      "Instruction vide.",
+      "Écris, dicte ou joins une image avant de l’envoyer."
+    );
     if (ariaState.isTextInputVisible) input.focus();
     return;
   }
@@ -199,14 +231,24 @@ async function handleCommand(options = {}) {
 
   input.value = "";
   ariaState.voiceTranscript = "";
-  addMessage("user", command, true);
+
+  const displayedCommand = imageToSend
+    ? `${command}\n\n📎 Image jointe : ${imageToSend.name}`
+    : command;
+
+  addMessage("user", displayedCommand, true);
+
+  if (imageToSend) {
+    clearPendingImage(false);
+  }
+
   setBusy(true);
   setState("thinking", "ARIA réfléchit…", "La demande est transmise à ARIA Core.");
   const typingId = addTypingMessage();
   let answerToSpeak = "";
 
   try {
-    const result = await requestRemoteAria();
+    const result = await requestRemoteAria(imageToSend);
     removeMessageElement(typingId);
     addMessage("assistant", result.answer, true);
     ariaState.memoryStorageConfigured =
@@ -229,6 +271,11 @@ async function handleCommand(options = {}) {
     console.error("ARIA request failed:", error);
     removeMessageElement(typingId);
 
+    if (imageToSend && !ariaState.pendingImage) {
+      ariaState.pendingImage = imageToSend;
+      updateImageAttachmentInterface();
+    }
+
     if (error.status === 401) {
       clearAccessToken();
       addMessage("error", "Le code d’accès ARIA est invalide ou a été modifié.", false);
@@ -250,7 +297,7 @@ async function handleCommand(options = {}) {
   }
 }
 
-async function requestRemoteAria() {
+async function requestRemoteAria(image = null) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(
     () => controller.abort(),
@@ -271,9 +318,17 @@ async function requestRemoteAria() {
       },
       body: JSON.stringify({
         messages,
+        image: image
+          ? {
+              dataUrl: image.dataUrl,
+              mimeType: image.mimeType,
+              name: image.name,
+              source: image.source
+            }
+          : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "0.7.3"
+          version: config.version || "0.8.0"
         }
       }),
       signal: controller.signal
@@ -1127,7 +1182,7 @@ function loadVoiceSettings() {
     const rate = Number(localStorage.getItem(config.speechRateKey));
     const voiceName = localStorage.getItem(config.speechVoiceKey);
 
-    ariaState.autoSpeak = autoSpeak === null ? true : autoSpeak === "true";
+    ariaState.autoSpeak = autoSpeak === null ? false : autoSpeak === "true";
     ariaState.speechRate = Number.isFinite(rate) && rate >= 0.5 && rate <= 2
       ? rate
       : 1;
@@ -1155,6 +1210,52 @@ function saveVoiceSettings() {
   if (!ariaState.autoSpeak && ariaState.isSpeaking) {
     cancelSpeech();
   }
+
+  updateVoiceOutputIndicator();
+}
+
+
+function toggleVoiceOutput() {
+  ariaState.autoSpeak = !ariaState.autoSpeak;
+  getElement("auto-speak-toggle").checked = ariaState.autoSpeak;
+  saveVoiceSettings();
+
+  if (!ariaState.autoSpeak) {
+    cancelSpeech(false);
+    setVoiceStatus(
+      "Réponses audio désactivées.",
+      "Le microphone reste disponible pour parler à ARIA."
+    );
+  } else {
+    setVoiceStatus(
+      "Réponses audio activées.",
+      "Les prochaines réponses seront lues à voix haute."
+    );
+  }
+
+  updateVoiceOutputIndicator();
+}
+
+function updateVoiceOutputIndicator() {
+  if (!domReady) return;
+
+  const indicator = getElement("voice-output-indicator");
+  const enabled = ariaState.autoSpeak;
+
+  indicator.textContent = enabled
+    ? "Voix activée"
+    : "Voix désactivée";
+  indicator.classList.toggle("connected", enabled);
+  indicator.setAttribute("aria-pressed", String(enabled));
+  indicator.setAttribute(
+    "aria-label",
+    enabled
+      ? "Désactiver les réponses vocales"
+      : "Activer les réponses vocales"
+  );
+  indicator.title = enabled
+    ? "Cliquer pour désactiver les réponses audio"
+    : "Cliquer pour activer les réponses audio";
 }
 
 function initializeSpeechSynthesis() {
@@ -1656,6 +1757,335 @@ function updateVoiceInterface() {
   }
 }
 
+
+function approximateDataUrlBytes(dataUrl) {
+  const base64 = String(dataUrl || "").split(",")[1] || "";
+  const padding = (base64.match(/=+$/) || [""])[0].length;
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+}
+
+function formatFileSize(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "taille inconnue";
+  if (bytes < 1024) return `${bytes} octets`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} Ko`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+}
+
+function canvasToDataUrl(canvas, quality) {
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
+function drawSourceToCanvas(source, sourceWidth, sourceHeight, maxDimension) {
+  const scale = Math.min(
+    1,
+    maxDimension / Math.max(sourceWidth, sourceHeight)
+  );
+
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+  const canvas = document.createElement("canvas");
+
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d", {
+    alpha: false,
+    desynchronized: true
+  });
+
+  if (!context) {
+    throw new Error("Le navigateur ne peut pas préparer l’image.");
+  }
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, width, height);
+  context.drawImage(source, 0, 0, width, height);
+
+  return canvas;
+}
+
+async function compressImageSource({
+  source,
+  width,
+  height,
+  name,
+  sourceType
+}) {
+  const maxChars = Number(config.maxImageDataUrlChars) || 2500000;
+  const initialMaxDimension =
+    Number(config.maxImageDimension) || 1440;
+  const initialQuality =
+    Number(config.imageJpegQuality) || 0.78;
+
+  let maxDimension = initialMaxDimension;
+  let bestResult = null;
+
+  for (let sizeAttempt = 0; sizeAttempt < 4; sizeAttempt += 1) {
+    const canvas = drawSourceToCanvas(
+      source,
+      width,
+      height,
+      maxDimension
+    );
+
+    for (const quality of [
+      initialQuality,
+      0.68,
+      0.58,
+      0.48
+    ]) {
+      const dataUrl = canvasToDataUrl(canvas, quality);
+      const result = {
+        dataUrl,
+        mimeType: "image/jpeg",
+        name: String(name || "image.jpg").slice(0, 160),
+        source: sourceType === "screen" ? "screen" : "file",
+        width: canvas.width,
+        height: canvas.height,
+        approxBytes: approximateDataUrlBytes(dataUrl)
+      };
+
+      bestResult = result;
+
+      if (dataUrl.length <= maxChars) {
+        return result;
+      }
+    }
+
+    maxDimension = Math.round(maxDimension * 0.78);
+  }
+
+  throw new Error(
+    `L’image reste trop volumineuse après compression (${formatFileSize(
+      bestResult?.approxBytes
+    )}).`
+  );
+}
+
+async function loadImageElementFromFile(file) {
+  if ("createImageBitmap" in window) {
+    return createImageBitmap(file);
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const image = new Image();
+    image.decoding = "async";
+
+    await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = () =>
+        reject(new Error("Le fichier image ne peut pas être ouvert."));
+      image.src = objectUrl;
+    });
+
+    return image;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function handleImageFileSelection(event) {
+  const input = event.currentTarget;
+  const [file] = input.files || [];
+  input.value = "";
+
+  if (!file) return;
+
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    setState(
+      "error",
+      "Format d’image non autorisé.",
+      "Utilise un fichier JPEG, PNG ou WebP."
+    );
+    return;
+  }
+
+  if (file.size > 15 * 1024 * 1024) {
+    setState(
+      "error",
+      "Fichier trop volumineux.",
+      "Choisis une image de moins de 15 Mo avant compression."
+    );
+    return;
+  }
+
+  ariaState.imageBusy = true;
+  updateImageAttachmentInterface();
+  setState(
+    "thinking",
+    "Préparation de l’image…",
+    "ARIA compresse l’image localement avant son envoi."
+  );
+
+  let imageSource = null;
+
+  try {
+    imageSource = await loadImageElementFromFile(file);
+
+    const width =
+      imageSource.width ||
+      imageSource.naturalWidth;
+    const height =
+      imageSource.height ||
+      imageSource.naturalHeight;
+
+    const attachment = await compressImageSource({
+      source: imageSource,
+      width,
+      height,
+      name: file.name,
+      sourceType: "file"
+    });
+
+    setPendingImage(attachment);
+    setState(
+      "idle",
+      "Image prête.",
+      "Elle sera envoyée uniquement avec le prochain message."
+    );
+  } catch (error) {
+    console.error("Image preparation failed:", error);
+    setState(
+      "error",
+      "Impossible de préparer l’image.",
+      getReadableError(error)
+    );
+  } finally {
+    if (imageSource && typeof imageSource.close === "function") {
+      imageSource.close();
+    }
+
+    ariaState.imageBusy = false;
+    updateImageAttachmentInterface();
+  }
+}
+
+async function captureSharedScreen() {
+  const video = getElement("screen-preview");
+
+  if (
+    !ariaState.stream ||
+    video.readyState < 2 ||
+    !video.videoWidth ||
+    !video.videoHeight
+  ) {
+    setState(
+      "error",
+      "Capture indisponible.",
+      "Démarre le partage d’écran et attends que l’aperçu soit visible."
+    );
+    return;
+  }
+
+  ariaState.imageBusy = true;
+  updateImageAttachmentInterface();
+  setState(
+    "thinking",
+    "Création de la capture…",
+    "La capture est préparée localement."
+  );
+
+  try {
+    const attachment = await compressImageSource({
+      source: video,
+      width: video.videoWidth,
+      height: video.videoHeight,
+      name: `capture-ecran-${new Date()
+        .toISOString()
+        .replace(/[:.]/g, "-")}.jpg`,
+      sourceType: "screen"
+    });
+
+    setPendingImage(attachment);
+    setState(
+      "idle",
+      "Capture jointe.",
+      "Elle sera envoyée uniquement avec le prochain message."
+    );
+
+    getElement("command-panel").scrollIntoView({
+      behavior: "smooth",
+      block: "nearest"
+    });
+  } catch (error) {
+    console.error("Screen capture failed:", error);
+    setState(
+      "error",
+      "Impossible de créer la capture.",
+      getReadableError(error)
+    );
+  } finally {
+    ariaState.imageBusy = false;
+    updateImageAttachmentInterface();
+  }
+}
+
+function setPendingImage(image) {
+  ariaState.pendingImage = image || null;
+  updateImageAttachmentInterface();
+}
+
+function clearPendingImage(updateStatus = true) {
+  ariaState.pendingImage = null;
+  updateImageAttachmentInterface();
+
+  if (updateStatus) {
+    setState(
+      "idle",
+      "Image retirée.",
+      "Aucune image ne sera envoyée avec le prochain message."
+    );
+  }
+}
+
+function updateImageAttachmentInterface() {
+  if (!domReady) return;
+
+  const attachment = ariaState.pendingImage;
+  const card = getElement("image-attachment-card");
+  const preview = getElement("image-attachment-preview");
+  const addButton = getElement("add-image-button");
+  const captureButton = getElement("capture-screen-button");
+  const removeButton = getElement("remove-image-button");
+
+  card.hidden = !attachment;
+
+  addButton.disabled =
+    ariaState.isBusy ||
+    ariaState.imageBusy;
+
+  captureButton.disabled =
+    ariaState.isBusy ||
+    ariaState.imageBusy ||
+    !ariaState.stream;
+
+  removeButton.disabled =
+    ariaState.isBusy ||
+    ariaState.imageBusy;
+
+  if (!attachment) {
+    preview.removeAttribute("src");
+    getElement("image-attachment-name").textContent =
+      "Image jointe";
+    getElement("image-attachment-details").textContent = "";
+    return;
+  }
+
+  preview.src = attachment.dataUrl;
+  getElement("image-attachment-name").textContent =
+    attachment.name;
+  getElement("image-attachment-details").textContent =
+    `${
+      attachment.source === "screen"
+        ? "Capture d’écran"
+        : "Fichier image"
+    } · ${attachment.width} × ${attachment.height} · ${formatFileSize(
+      attachment.approxBytes
+    )}`;
+}
+
 async function startScreenShare() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
     setState("error", "Le partage d’écran n’est pas disponible.", "Utilise un navigateur récent et une page HTTPS.");
@@ -1680,7 +2110,12 @@ async function startScreenShare() {
     getElement("preview-card").hidden = false;
     getElement("share-button").disabled = true;
     getElement("stop-button").disabled = false;
-    setState("observing", "Fenêtre partagée.", "L’aperçu reste local et n’est pas envoyé à ARIA.");
+    updateImageAttachmentInterface();
+    setState(
+      "observing",
+      "Fenêtre partagée.",
+      "L’aperçu reste local tant que tu ne joins pas une capture."
+    );
   } catch (error) {
     if (error?.name === "NotAllowedError") {
       setState("idle", "Partage annulé.", "ARIA n’a reçu aucun accès à l’écran.");
@@ -1703,6 +2138,7 @@ function stopScreenShare(updateStatus = true) {
   getElement("preview-card").hidden = true;
   getElement("share-button").disabled = false;
   getElement("stop-button").disabled = true;
+  updateImageAttachmentInterface();
 
   if (updateStatus) {
     setState("idle", "Capture arrêtée.", "ARIA ne reçoit plus aucune image de l’écran.");
@@ -1718,6 +2154,7 @@ function resetAriaState() {
   cancelSpeech(false);
   ariaState.voiceTranscript = "";
   stopScreenShare(false);
+  clearPendingImage(false);
   getElement("command-input").value = "";
   setState("idle", "ARIA est prête.", getModeDetail());
   getElement("command-input").focus();
@@ -1890,6 +2327,7 @@ function setBusy(isBusy) {
   getElement("connect-button").disabled = isBusy;
   getElement("connection-indicator").disabled = isBusy;
   updateVoiceInterface();
+  updateImageAttachmentInterface();
 }
 
 function setState(mode, message, detail) {
@@ -1905,14 +2343,23 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "0.7.3").replace(/^v/, "")}`;
+    `v${String(config.version || "0.8.0").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
-  privacy.textContent = ariaState.stream ? "Capture active" : "Aucune capture active";
-  privacy.classList.toggle("active", Boolean(ariaState.stream));
+  privacy.textContent = ariaState.pendingImage
+    ? "Image prête à envoyer"
+    : ariaState.stream
+      ? "Écran partagé localement"
+      : "Aucune image active";
+  privacy.classList.toggle(
+    "active",
+    Boolean(ariaState.stream || ariaState.pendingImage)
+  );
   updateConversationVisibility();
   updateTextInputVisibility();
   updateVoiceInterface();
+  updateVoiceOutputIndicator();
+  updateImageAttachmentInterface();
   updateMemoryProposalCard();
   updateBrainIndicator();
 }

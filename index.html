@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v0.7.3</title>
+  <title>ARIA — v0.8</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
   <script src="config.js"></script>
@@ -17,7 +17,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v0.7.3</span>
+          <span id="version-label" class="version-badge">v0.8</span>
         </div>
       </div>
       <div class="header-status">
@@ -48,6 +48,16 @@
           title="Afficher ou masquer la zone de saisie"
         >
           Clavier affiché
+        </button>
+        <button
+          id="voice-output-indicator"
+          class="status-chip status-chip-button"
+          type="button"
+          aria-label="Activer les réponses vocales"
+          title="Activer les réponses vocales"
+          aria-pressed="false"
+        >
+          Voix désactivée
         </button>
         <span id="privacy-indicator" class="status-chip">Aucune capture active</span>
       </div>
@@ -90,8 +100,8 @@
           <summary>Réglages vocaux</summary>
           <div class="voice-settings-grid">
             <label class="toggle-setting" for="auto-speak-toggle">
-              <input id="auto-speak-toggle" type="checkbox" checked />
-              <span>Lire automatiquement les réponses</span>
+              <input id="auto-speak-toggle" type="checkbox" />
+              <span>Activer les réponses audio</span>
             </label>
 
             <label for="speech-rate-select">
@@ -115,8 +125,9 @@
       </div>
 
       <p class="voice-privacy-note">
-        La voix principale d’ARIA est générée par intelligence artificielle via OpenAI.
-        Une voix locale du navigateur prend automatiquement le relais en cas d’indisponibilité.
+        Les réponses audio ne sont générées que lorsque la voix est activée.
+        La voix principale est générée par intelligence artificielle via OpenAI ;
+        une voix locale prend le relais en cas d’indisponibilité.
         Aucun fichier audio n’est conservé par ARIA Web.
       </p>
     </section>
@@ -207,6 +218,43 @@
     </section>
     <section id="command-panel" class="command-panel">
       <label for="command-input">Instruction</label>
+
+      <div class="attachment-toolbar">
+        <input
+          id="image-file-input"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          hidden
+        />
+        <button id="add-image-button" class="secondary compact" type="button">
+          Ajouter une image
+        </button>
+        <button
+          id="capture-screen-button"
+          class="secondary compact"
+          type="button"
+          disabled
+        >
+          Joindre l’écran partagé
+        </button>
+        <span>Une image maximum · envoyée uniquement au prochain message</span>
+      </div>
+
+      <div id="image-attachment-card" class="image-attachment-card" hidden>
+        <img id="image-attachment-preview" alt="Aperçu de l’image jointe" />
+        <div class="image-attachment-copy">
+          <strong id="image-attachment-name">Image jointe</strong>
+          <span id="image-attachment-details"></span>
+        </div>
+        <button
+          id="remove-image-button"
+          class="secondary compact"
+          type="button"
+        >
+          Retirer
+        </button>
+      </div>
+
       <div class="command-row">
         <textarea
           id="command-input"
@@ -232,11 +280,12 @@
     <section class="preview-card" id="preview-card" hidden>
       <div class="preview-heading">
         <h2>Aperçu local</h2>
-        <span>Non enregistré</span>
+        <span>Local jusqu’à validation</span>
       </div>
       <video id="screen-preview" autoplay muted playsinline></video>
       <p>
-        Le partage reste affiché uniquement sur cet appareil. Cette version ne transmet pas encore l’image à ARIA.
+        Le partage reste local. Clique sur « Joindre l’écran partagé » pour créer
+        une capture ponctuelle, puis sur « Envoyer » pour la transmettre à ARIA.
       </p>
     </section>
 
@@ -249,7 +298,7 @@
         </div>
       </div>
       <p class="footer-technical">
-        ARIA Web v0.7.3 · saisie sous la conversation · mémoire assistée
+        ARIA Web v0.8 · vision contrôlée · voix activable
       </p>
       <p class="footer-safety">
         Validation humaine requise avant toute action métier.
