@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "0.7.2",
+  version: "0.7.3",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -216,6 +216,15 @@ async function handleCommand(options = {}) {
       ? `${result.answer} Cette information semble utile pour BRAIN. Dis mémorise ou ignore, ou utilise les boutons affichés.`
       : result.answer;
     setState("idle", "Réponse terminée.", "Le moteur privé ARIA Core est connecté.");
+
+    if (ariaState.isTextInputVisible) {
+      window.requestAnimationFrame(() => {
+        getElement("command-panel").scrollIntoView({
+          behavior: "smooth",
+          block: "nearest"
+        });
+      });
+    }
   } catch (error) {
     console.error("ARIA request failed:", error);
     removeMessageElement(typingId);
@@ -264,7 +273,7 @@ async function requestRemoteAria() {
         messages,
         client: {
           name: "ARIA-web",
-          version: config.version || "0.7.2"
+          version: config.version || "0.7.3"
         }
       }),
       signal: controller.signal
@@ -540,6 +549,15 @@ function updateTextInputVisibility() {
   headerButton.title = isVisible
     ? "Cliquer pour masquer la zone de saisie"
     : "Cliquer pour afficher la zone de saisie";
+
+  if (isVisible && document.activeElement !== getElement("command-input")) {
+    window.requestAnimationFrame(() => {
+      panel.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest"
+      });
+    });
+  }
 }
 
 
@@ -1887,7 +1905,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "0.7.2").replace(/^v/, "")}`;
+    `v${String(config.version || "0.7.3").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.stream ? "Capture active" : "Aucune capture active";

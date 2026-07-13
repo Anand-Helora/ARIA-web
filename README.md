@@ -1,4 +1,4 @@
-# ARIA Web v0.7.2 — Clavier toujours accessible
+# ARIA Web v0.7.3 — Saisie en bas de conversation
 
 Cette version permet à ARIA de proposer une information durable à mémoriser.
 
@@ -57,3 +57,16 @@ identifiant de stockage.
 - Elle est automatiquement réaffichée après chaque connexion.
 - Un bouton permanent `Clavier affiché / Afficher le clavier` est ajouté dans l’en-tête.
 - Le bouton `Masquer le clavier` du mode vocal reste disponible.
+
+
+## Placement de la saisie v0.7.3
+
+L’ordre de l’interface conversationnelle devient :
+
+1. historique de la discussion ;
+2. proposition BRAIN éventuelle ;
+3. zone de saisie et bouton Envoyer.
+
+La zone texte reste accessible par le bouton `Clavier` de l’en-tête et par le
+bouton du mode vocal. Lorsqu’elle est réaffichée, la page revient
+automatiquement vers la zone de saisie.

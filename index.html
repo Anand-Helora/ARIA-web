@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v0.7.2</title>
+  <title>ARIA — v0.7.3</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
   <script src="config.js"></script>
@@ -17,7 +17,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v0.7.2</span>
+          <span id="version-label" class="version-badge">v0.7.3</span>
         </div>
       </div>
       <div class="header-status">
@@ -121,43 +121,7 @@
       </p>
     </section>
 
-    <section id="command-panel" class="command-panel">
-      <label for="command-input">Instruction</label>
-      <div class="command-row">
-        <textarea
-          id="command-input"
-          rows="2"
-          placeholder="Exemple : explique-moi la différence entre un paramètre Revit de type et d’occurrence"
-          autocomplete="off"
-        ></textarea>
-        <button id="voice-button" class="icon-button" type="button" aria-label="Démarrer la dictée vocale" title="Dictée vocale">🎙</button>
-        <button id="send-button" type="button">Envoyer</button>
-      </div>
-      <p class="hint">Entrée pour envoyer · Maj + Entrée pour aller à la ligne</p>
-    </section>
 
-    <section id="memory-proposal-card" class="memory-proposal-card" hidden aria-live="polite">
-      <div class="memory-proposal-heading">
-        <div>
-          <p class="section-kicker">PROPOSITION BRAIN</p>
-          <h2>ARIA propose de mémoriser</h2>
-        </div>
-        <span id="memory-proposal-category" class="memory-category">Mémoire</span>
-      </div>
-
-      <h3 id="memory-proposal-title"></h3>
-      <p id="memory-proposal-summary" class="memory-proposal-summary"></p>
-      <p id="memory-proposal-reason" class="memory-proposal-reason"></p>
-
-      <div class="memory-proposal-actions">
-        <button id="approve-memory-button" type="button">Mémoriser</button>
-        <button id="dismiss-memory-button" class="secondary" type="button">Ignorer</button>
-      </div>
-
-      <p class="memory-voice-hint">
-        En mode vocal, tu peux dire « mémorise » ou « ignore ».
-      </p>
-    </section>
 
     <section id="status-panel" class="status-panel" aria-live="polite">
       <p id="status-label">ARIA est prête.</p>
@@ -217,6 +181,45 @@
           Afficher
         </button>
       </div>
+
+      <div class="conversation-composer">
+    <section id="memory-proposal-card" class="memory-proposal-card" hidden aria-live="polite">
+      <div class="memory-proposal-heading">
+        <div>
+          <p class="section-kicker">PROPOSITION BRAIN</p>
+          <h2>ARIA propose de mémoriser</h2>
+        </div>
+        <span id="memory-proposal-category" class="memory-category">Mémoire</span>
+      </div>
+
+      <h3 id="memory-proposal-title"></h3>
+      <p id="memory-proposal-summary" class="memory-proposal-summary"></p>
+      <p id="memory-proposal-reason" class="memory-proposal-reason"></p>
+
+      <div class="memory-proposal-actions">
+        <button id="approve-memory-button" type="button">Mémoriser</button>
+        <button id="dismiss-memory-button" class="secondary" type="button">Ignorer</button>
+      </div>
+
+      <p class="memory-voice-hint">
+        En mode vocal, tu peux dire « mémorise » ou « ignore ».
+      </p>
+    </section>
+    <section id="command-panel" class="command-panel">
+      <label for="command-input">Instruction</label>
+      <div class="command-row">
+        <textarea
+          id="command-input"
+          rows="2"
+          placeholder="Exemple : explique-moi la différence entre un paramètre Revit de type et d’occurrence"
+          autocomplete="off"
+        ></textarea>
+        <button id="voice-button" class="icon-button" type="button" aria-label="Démarrer la dictée vocale" title="Dictée vocale">🎙</button>
+        <button id="send-button" type="button">Envoyer</button>
+      </div>
+      <p class="hint">Entrée pour envoyer · Maj + Entrée pour aller à la ligne</p>
+    </section>
+      </div>
     </section>
 
 
@@ -246,7 +249,7 @@
         </div>
       </div>
       <p class="footer-technical">
-        ARIA Web v0.7.2 · clavier toujours accessible · mémoire assistée
+        ARIA Web v0.7.3 · saisie sous la conversation · mémoire assistée
       </p>
       <p class="footer-safety">
         Validation humaine requise avant toute action métier.
