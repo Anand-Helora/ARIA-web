@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "0.8.1",
+  version: "0.8.2",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -328,7 +328,7 @@ async function requestRemoteAria(image = null) {
           : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "0.8.1"
+          version: config.version || "0.8.2"
         }
       }),
       signal: controller.signal
@@ -1222,6 +1222,17 @@ function toggleVoiceOutput() {
 
   if (!ariaState.autoSpeak) {
     cancelSpeech(false);
+
+    const activeElement = document.activeElement;
+    const voiceConsole = getElement("voice-console");
+
+    if (
+      activeElement instanceof HTMLElement &&
+      voiceConsole.contains(activeElement)
+    ) {
+      activeElement.blur();
+    }
+
     setState(
       "idle",
       "Mode vocal désactivé.",
@@ -1247,10 +1258,10 @@ function updateVoiceOutputIndicator() {
 
   const indicator = getElement("voice-output-indicator");
   const voiceConsole = getElement("voice-console");
-  const enabled = ariaState.autoSpeak;
+  const enabled = Boolean(ariaState.autoSpeak);
+  const connected = Boolean(ariaState.accessToken);
+  const shouldShowConsole = enabled && connected;
 
-  // Le libellé reste volontairement stable.
-  // La couleur et aria-pressed indiquent l'état actif ou inactif.
   indicator.textContent = "Mode vocal";
   indicator.classList.toggle("connected", enabled);
   indicator.setAttribute("aria-pressed", String(enabled));
@@ -1264,11 +1275,31 @@ function updateVoiceOutputIndicator() {
     ? "Mode vocal activé — cliquer pour le désactiver"
     : "Mode vocal désactivé — cliquer pour l’activer";
 
-  // La grande carte vocale ne doit exister visuellement
-  // que lorsque le mode vocal est activé et ARIA connectée.
-  voiceConsole.hidden =
-    !enabled ||
-    !ariaState.accessToken;
+  // Triple verrouillage visuel :
+  // 1. attribut hidden
+  // 2. classe CSS globale
+  // 3. style inline explicite
+  voiceConsole.hidden = !shouldShowConsole;
+  voiceConsole.setAttribute(
+    "aria-hidden",
+    String(!shouldShowConsole)
+  );
+  voiceConsole.classList.toggle(
+    "voice-console-force-hidden",
+    !shouldShowConsole
+  );
+  voiceConsole.style.display = shouldShowConsole
+    ? ""
+    : "none";
+
+  document.body.classList.toggle(
+    "voice-mode-disabled",
+    !enabled
+  );
+
+  if ("inert" in voiceConsole) {
+    voiceConsole.inert = !shouldShowConsole;
+  }
 }
 
 function initializeSpeechSynthesis() {
@@ -1736,9 +1767,8 @@ function updateVoiceInterface() {
   const transcript = getElement("voice-live-transcript");
   const stopButton = getElement("stop-speech-button");
 
-  consolePanel.hidden =
-    !connected ||
-    !ariaState.autoSpeak;
+  // La visibilité finale de la carte est centralisée dans
+  // updateVoiceOutputIndicator afin d'éviter les états contradictoires.
   stopButton.hidden = !ariaState.isSpeaking;
 
   mainButton.classList.toggle("listening", ariaState.isListening);
@@ -1770,6 +1800,8 @@ function updateVoiceInterface() {
   if (!ariaState.isListening && !ariaState.voiceTranscript && !ariaState.isSpeaking) {
     transcript.textContent = "En attente de ta voix.";
   }
+
+  updateVoiceOutputIndicator();
 }
 
 
@@ -2358,7 +2390,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "0.8.1").replace(/^v/, "")}`;
+    `v${String(config.version || "0.8.2").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingImage

@@ -1,4 +1,4 @@
-# ARIA Web v0.8.1 — Mode vocal activable
+# ARIA Web v0.8.2 — Correctif masquage du mode vocal
 
 ## Réponses vocales
 
@@ -69,3 +69,15 @@ Lorsque le mode vocal est activé :
 - les réponses audio sont autorisées.
 
 Le choix reste mémorisé localement sur l’appareil.
+
+
+## Correctif v0.8.2
+
+La carte Mode vocal est désormais masquée par trois mécanismes simultanés :
+
+1. attribut HTML `hidden` ;
+2. classe CSS globale `voice-mode-disabled` ;
+3. style inline `display: none`.
+
+La gestion de visibilité est centralisée afin qu’aucune autre fonction ne
+puisse réafficher la carte lorsque le mode vocal est désactivé.

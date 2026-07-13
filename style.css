@@ -271,8 +271,10 @@ h2 {
 }
 
 .voice-console[hidden],
+.voice-console.voice-console-force-hidden,
+body.voice-mode-disabled #voice-console,
 .command-panel[hidden] {
-  display: none;
+  display: none !important;
 }
 
 .voice-console-copy {
