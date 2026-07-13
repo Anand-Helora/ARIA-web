@@ -1,24 +1,28 @@
-# Prototype d’interface p5.js
+# ARIA Web — v0.2.0
 
-Ce prototype démontre uniquement :
+Interface publique de démonstration d’ARIA.
 
-- l’identité visuelle minimale d’ARIA ;
-- une zone de saisie ;
-- des états visuels ;
-- une demande explicite de partage d’écran ;
-- l’arrêt immédiat de la capture.
+## Nouveautés
 
-Il ne contient :
+- conversation sous forme de messages ;
+- historique local dans le navigateur ;
+- dictée vocale avec gestion des erreurs ;
+- partage d’écran avec aperçu strictement local ;
+- mode local de démonstration ;
+- préparation d’un futur appel à un backend sécurisé.
 
-- aucune clé API ;
-- aucun accès à SharePoint ;
-- aucune analyse automatique ;
-- aucune sauvegarde de capture ;
-- aucune donnée hospitalière.
+## Sécurité
 
-## Tester
+Ne jamais placer de clé API, mot de passe ou jeton secret dans `config.js`, `sketch.js` ou tout autre fichier de ce dépôt public.
 
-Ouvrir `index.html` via GitHub Pages ou un serveur web simple.
+Le mode `remote` ne devra être activé qu’après création d’un backend HTTPS sécurisé. Le navigateur appellera ce backend, et le backend conservera les secrets côté serveur.
 
-Certaines fonctions du navigateur, comme le partage d’écran, exigent une page sécurisée
-en HTTPS. GitHub Pages fournit HTTPS.
+## Publication
+
+Les cinq fichiers doivent se trouver directement à la racine du dépôt GitHub Pages :
+
+- `index.html`
+- `style.css`
+- `sketch.js`
+- `config.js`
+- `README.md`

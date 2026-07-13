@@ -2,59 +2,115 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Prototype ARIA v0.1" />
-  <title>ARIA — Prototype v0.1</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#071016" />
+  <meta
+    name="description"
+    content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle"
+  />
+  <title>ARIA — Prototype v0.2</title>
   <link rel="stylesheet" href="style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
+  <script src="config.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
+  <script defer src="sketch.js"></script>
 </head>
 <body>
   <main id="app-shell">
-    <header>
+    <header class="app-header">
       <div>
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
-        <h1>ARIA</h1>
+        <div class="title-row">
+          <h1>ARIA</h1>
+          <span id="version-label" class="version-badge">v0.2</span>
+        </div>
       </div>
-      <span id="privacy-indicator" class="privacy-indicator">Aucune capture active</span>
+      <div class="indicators" aria-label="État de confidentialité et de connexion">
+        <span id="connection-indicator" class="indicator">Mode local</span>
+        <span id="privacy-indicator" class="indicator">Aucune capture active</span>
+      </div>
     </header>
 
-    <section id="visual-stage" aria-label="Visualisation ARIA"></section>
-
-    <section class="status-panel" aria-live="polite">
-      <p id="status-label">ARIA est prête.</p>
-      <p id="detail-label">Aucune donnée n’est transmise ou enregistrée.</p>
+    <section id="visual-stage" aria-label="Visualisation de l’état d’ARIA">
+      <div id="visual-fallback" class="visual-fallback" aria-hidden="true"></div>
     </section>
 
-    <section class="command-panel">
-      <label for="command-input">Instruction</label>
-      <div class="command-row">
-        <input
-          id="command-input"
-          type="text"
-          placeholder="Exemple : analyse la fenêtre que je vais partager"
-          autocomplete="off"
-        />
-        <button id="send-button" type="button">Envoyer</button>
+    <section class="status-panel" aria-live="polite" aria-atomic="true">
+      <p id="status-label">ARIA est prête.</p>
+      <p id="detail-label">La conversation reste enregistrée uniquement dans ce navigateur.</p>
+    </section>
+
+    <section class="conversation-panel" aria-label="Conversation avec ARIA">
+      <div class="conversation-toolbar">
+        <div>
+          <h2>Conversation</h2>
+          <p id="conversation-count">0 message</p>
+        </div>
+        <button id="clear-button" type="button" class="button ghost small">Effacer</button>
+      </div>
+
+      <div id="conversation" class="conversation" aria-live="polite" aria-relevant="additions">
+        <article class="message assistant-message">
+          <div class="message-meta">ARIA</div>
+          <p>Bonjour Anand. Je suis prête à recevoir une première instruction.</p>
+        </article>
       </div>
     </section>
 
-    <section class="actions">
-      <button id="share-button" type="button">Partager mon écran</button>
-      <button id="stop-button" type="button" disabled>Arrêter la capture</button>
-      <button id="reset-button" type="button" class="secondary">Réinitialiser</button>
+    <section class="command-panel" aria-label="Envoyer une instruction">
+      <label for="command-input">Instruction</label>
+      <div class="command-row">
+        <textarea
+          id="command-input"
+          rows="2"
+          maxlength="4000"
+          placeholder="Exemple : que peux-tu faire dans cette version ?"
+          autocomplete="off"
+        ></textarea>
+        <div class="command-actions">
+          <button
+            id="voice-button"
+            type="button"
+            class="button icon-button"
+            aria-label="Démarrer la dictée vocale"
+            title="Dictée vocale"
+          >
+            <span aria-hidden="true">🎙</span>
+          </button>
+          <button id="send-button" type="button" class="button primary">Envoyer</button>
+        </div>
+      </div>
+      <p class="input-help">Entrée pour envoyer · Maj + Entrée pour aller à la ligne</p>
+    </section>
+
+    <section class="actions" aria-label="Outils ARIA">
+      <button id="share-button" type="button" class="button">Partager mon écran</button>
+      <button id="stop-button" type="button" class="button danger" disabled>Arrêter la capture</button>
+      <button id="reset-button" type="button" class="button ghost">Réinitialiser l’état</button>
     </section>
 
     <section class="preview-card" id="preview-card" hidden>
-      <h2>Aperçu local</h2>
+      <div class="preview-header">
+        <h2>Aperçu local</h2>
+        <span>Non enregistré</span>
+      </div>
       <video id="screen-preview" autoplay muted playsinline></video>
-      <p>Ce flux reste affiché localement dans ce prototype. Il n’est ni enregistré ni analysé.</p>
+      <p>
+        Cette version affiche le partage uniquement sur ton appareil. L’image n’est pas encore envoyée à un modèle d’IA.
+      </p>
+    </section>
+
+    <section class="notice-card" aria-label="Limites du prototype">
+      <strong>Version de transition</strong>
+      <p>
+        ARIA v0.2 dispose maintenant d’une conversation, d’une mémoire locale de session et de la dictée vocale. Le véritable moteur d’IA sera relié ensuite par un backend sécurisé.
+      </p>
     </section>
 
     <footer>
-      Prototype ARIA v0.1 — validation humaine requise avant toute action métier.
+      ARIA v0.2 — validation humaine requise avant toute action métier.
     </footer>
   </main>
 
-  <script src="sketch.js"></script>
+  <noscript>JavaScript doit être activé pour utiliser ARIA.</noscript>
 </body>
 </html>
