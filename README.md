@@ -1,4 +1,4 @@
-# ARIA Web v0.7.1 — Mémoire assistée corrigée
+# ARIA Web v0.7.2 — Clavier toujours accessible
 
 Cette version permet à ARIA de proposer une information durable à mémoriser.
 
@@ -47,3 +47,13 @@ identifiant de stockage.
 - Une nouvelle clé de préférence locale évite de conserver l’ancien état masqué.
 - La carte indique clairement si le stockage BRAIN Vercel n’est pas détecté.
 - Les phrases explicites comme `Mémorise que…` déclenchent systématiquement une proposition.
+
+
+## Correctif clavier v0.7.2
+
+- La zone de saisie est déplacée directement sous le mode vocal.
+- Elle n’est plus placée sous l’historique de conversation.
+- Elle est visible même avant la connexion.
+- Elle est automatiquement réaffichée après chaque connexion.
+- Un bouton permanent `Clavier affiché / Afficher le clavier` est ajouté dans l’en-tête.
+- Le bouton `Masquer le clavier` du mode vocal reste disponible.

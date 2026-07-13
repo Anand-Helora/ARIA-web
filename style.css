@@ -178,6 +178,10 @@ h2 {
   background: rgba(38, 116, 92, 0.14);
 }
 
+#keyboard-indicator {
+  white-space: nowrap;
+}
+
 .status-chip.active {
   color: var(--warning);
   border-color: rgba(239, 193, 119, 0.35);
@@ -671,8 +675,17 @@ h2 {
 }
 
 .command-panel {
+  position: relative;
+  z-index: 2;
   margin-top: 18px;
   padding: 18px;
+  border-color: rgba(131, 230, 239, 0.30);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(18, 42, 51, 0.92),
+      rgba(11, 29, 37, 0.92)
+    );
 }
 
 .command-panel > label,

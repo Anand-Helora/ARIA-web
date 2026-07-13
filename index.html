@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v0.7.1</title>
+  <title>ARIA — v0.7.2</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
   <script src="config.js"></script>
@@ -17,7 +17,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v0.7.1</span>
+          <span id="version-label" class="version-badge">v0.7.2</span>
         </div>
       </div>
       <div class="header-status">
@@ -39,6 +39,15 @@
           disabled
         >
           BRAIN
+        </button>
+        <button
+          id="keyboard-indicator"
+          class="status-chip status-chip-button"
+          type="button"
+          aria-label="Afficher ou masquer la zone de saisie"
+          title="Afficher ou masquer la zone de saisie"
+        >
+          Clavier affiché
         </button>
         <span id="privacy-indicator" class="status-chip">Aucune capture active</span>
       </div>
@@ -110,6 +119,21 @@
         Une voix locale du navigateur prend automatiquement le relais en cas d’indisponibilité.
         Aucun fichier audio n’est conservé par ARIA Web.
       </p>
+    </section>
+
+    <section id="command-panel" class="command-panel">
+      <label for="command-input">Instruction</label>
+      <div class="command-row">
+        <textarea
+          id="command-input"
+          rows="2"
+          placeholder="Exemple : explique-moi la différence entre un paramètre Revit de type et d’occurrence"
+          autocomplete="off"
+        ></textarea>
+        <button id="voice-button" class="icon-button" type="button" aria-label="Démarrer la dictée vocale" title="Dictée vocale">🎙</button>
+        <button id="send-button" type="button">Envoyer</button>
+      </div>
+      <p class="hint">Entrée pour envoyer · Maj + Entrée pour aller à la ligne</p>
     </section>
 
     <section id="memory-proposal-card" class="memory-proposal-card" hidden aria-live="polite">
@@ -195,20 +219,6 @@
       </div>
     </section>
 
-    <section id="command-panel" class="command-panel">
-      <label for="command-input">Instruction</label>
-      <div class="command-row">
-        <textarea
-          id="command-input"
-          rows="2"
-          placeholder="Exemple : explique-moi la différence entre un paramètre Revit de type et d’occurrence"
-          autocomplete="off"
-        ></textarea>
-        <button id="voice-button" class="icon-button" type="button" aria-label="Démarrer la dictée vocale" title="Dictée vocale">🎙</button>
-        <button id="send-button" type="button">Envoyer</button>
-      </div>
-      <p class="hint">Entrée pour envoyer · Maj + Entrée pour aller à la ligne</p>
-    </section>
 
     <section class="actions">
       <button id="share-button" type="button">Partager mon écran</button>
@@ -236,7 +246,7 @@
         </div>
       </div>
       <p class="footer-technical">
-        ARIA Web v0.7.1 · mémoire assistée corrigée · voix OpenAI Coral
+        ARIA Web v0.7.2 · clavier toujours accessible · mémoire assistée
       </p>
       <p class="footer-safety">
         Validation humaine requise avant toute action métier.

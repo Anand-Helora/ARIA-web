@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "0.7.1",
+  version: "0.7.2",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -13,7 +13,7 @@ const config = window.ARIA_CONFIG || {
   localStorageKey: "aria.web.conversation.v0.3",
   sessionTokenKey: "aria.web.access-token.session.v0.3",
   conversationVisibilityKey: "aria.web.conversation-visible.v0.6",
-  textInputVisibilityKey: "aria.web.text-input-visible.v0.7.1",
+  textInputVisibilityKey: "aria.web.text-input-visible.v0.7.2",
   autoSpeakKey: "aria.web.auto-speak.v0.6",
   speechRateKey: "aria.web.speech-rate.v0.6",
   speechVoiceKey: "aria.web.speech-voice.v0.6.1"
@@ -143,6 +143,7 @@ function initializeInterface() {
   getElement("connect-button").addEventListener("click", handleConnectionButton);
   getElement("connection-indicator").addEventListener("click", handleConnectionButton);
   getElement("brain-indicator").addEventListener("click", openBrainDialog);
+  getElement("keyboard-indicator").addEventListener("click", toggleTextInputVisibility);
   getElement("approve-memory-button").addEventListener("click", approvePendingMemory);
   getElement("dismiss-memory-button").addEventListener("click", dismissPendingMemory);
   getElement("brain-dialog-close").addEventListener("click", closeBrainDialog);
@@ -157,6 +158,11 @@ function initializeInterface() {
   loadAccessToken();
   loadConversationVisibility();
   loadTextInputVisibility();
+
+  if (ariaState.accessToken) {
+    ariaState.isTextInputVisible = true;
+  }
+
   loadVoiceSettings();
   loadHistory();
   initializeVoiceRecognition();
@@ -258,7 +264,7 @@ async function requestRemoteAria() {
         messages,
         client: {
           name: "ARIA-web",
-          version: config.version || "0.7.1"
+          version: config.version || "0.7.2"
         }
       }),
       signal: controller.signal
@@ -356,12 +362,27 @@ function saveAccessToken(event) {
 
 function setAccessToken(token) {
   ariaState.accessToken = token;
+
   try {
     sessionStorage.setItem(config.sessionTokenKey, token);
   } catch (error) {
     console.warn("Session storage unavailable:", error);
   }
+
+  // Après chaque connexion, rendre la saisie texte immédiatement visible.
+  ariaState.isTextInputVisible = true;
+
+  try {
+    localStorage.setItem(
+      config.textInputVisibilityKey,
+      "true"
+    );
+  } catch (error) {
+    console.warn("Unable to persist keyboard visibility:", error);
+  }
+
   updateConnectionIndicator();
+  updateTextInputVisibility();
 }
 
 function loadAccessToken() {
@@ -493,18 +514,32 @@ function setTextInputVisibility(isVisible) {
 function updateTextInputVisibility() {
   if (!domReady) return;
 
-  const connected = Boolean(ariaState.accessToken);
   const panel = getElement("command-panel");
-  const button = getElement("text-mode-button");
+  const voiceButton = getElement("text-mode-button");
+  const headerButton = getElement("keyboard-indicator");
+  const isVisible = ariaState.isTextInputVisible;
 
-  panel.hidden = !connected || !ariaState.isTextInputVisible;
-  button.textContent = ariaState.isTextInputVisible
+  panel.hidden = !isVisible;
+
+  voiceButton.textContent = isVisible
     ? "Masquer le clavier"
     : "Afficher le clavier";
-  button.setAttribute(
+  voiceButton.setAttribute(
     "aria-pressed",
-    String(ariaState.isTextInputVisible)
+    String(isVisible)
   );
+
+  headerButton.textContent = isVisible
+    ? "Clavier affiché"
+    : "Afficher le clavier";
+  headerButton.classList.toggle("connected", isVisible);
+  headerButton.setAttribute(
+    "aria-pressed",
+    String(isVisible)
+  );
+  headerButton.title = isVisible
+    ? "Cliquer pour masquer la zone de saisie"
+    : "Cliquer pour afficher la zone de saisie";
 }
 
 
@@ -1852,7 +1887,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "0.7.1").replace(/^v/, "")}`;
+    `v${String(config.version || "0.7.2").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.stream ? "Capture active" : "Aucune capture active";
