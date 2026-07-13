@@ -1,4 +1,4 @@
-# ARIA Web v0.6.0
+# ARIA Web v0.6.1
 
 Interface publique d’ARIA reliée à **ARIA Core** sur Vercel.
 
@@ -91,3 +91,18 @@ Fonctions incluses :
 - aucune conservation de fichier audio par ARIA Web.
 
 La qualité et la disponibilité des voix dépendent du navigateur et du système d’exploitation.
+
+
+## Voix OpenAI Coral
+
+La lecture principale utilise désormais :
+
+- endpoint privé : `/api/speech`
+- modèle : `gpt-4o-mini-tts`
+- voix : `coral`
+- style : féminin, calme, naturel, chaleureux et professionnel
+
+La voix locale du navigateur reste disponible comme solution de secours.
+
+L'interface indique clairement que la voix principale est générée par
+intelligence artificielle.

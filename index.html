@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v0.6</title>
+  <title>ARIA — v0.6.1</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
   <script src="config.js"></script>
@@ -17,7 +17,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v0.6</span>
+          <span id="version-label" class="version-badge">v0.6.1</span>
         </div>
       </div>
       <div class="header-status">
@@ -87,7 +87,8 @@
             <label for="speech-voice-select">
               Voix
               <select id="speech-voice-select">
-                <option value="">Voix française automatique</option>
+                <option value="openai:coral">ARIA — voix IA féminine Coral</option>
+                <option value="browser:auto">Voix locale de secours</option>
               </select>
             </label>
           </div>
@@ -95,7 +96,8 @@
       </div>
 
       <p class="voice-privacy-note">
-        La reconnaissance et la lecture vocales utilisent les fonctions disponibles dans ton navigateur.
+        La voix principale d’ARIA est générée par intelligence artificielle via OpenAI.
+        Une voix locale du navigateur prend automatiquement le relais en cas d’indisponibilité.
         Aucun fichier audio n’est conservé par ARIA Web.
       </p>
     </section>
@@ -201,7 +203,7 @@
         </div>
       </div>
       <p class="footer-technical">
-        ARIA Web v0.6 · mode vocal · BRAIN privé actif
+        ARIA Web v0.6.1 · voix OpenAI Coral · BRAIN privé actif
       </p>
       <p class="footer-safety">
         Validation humaine requise avant toute action métier.

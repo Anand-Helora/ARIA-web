@@ -1,10 +1,12 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "0.6.0",
+  version: "0.6.1",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
+  speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
   requestTimeoutMs: 45000,
+  speechRequestTimeoutMs: 45000,
   maxHistoryMessages: 20,
   localStorageKey: "aria.web.conversation.v0.3",
   sessionTokenKey: "aria.web.access-token.session.v0.3",
@@ -12,7 +14,7 @@ const config = window.ARIA_CONFIG || {
   textInputVisibilityKey: "aria.web.text-input-visible.v0.6",
   autoSpeakKey: "aria.web.auto-speak.v0.6",
   speechRateKey: "aria.web.speech-rate.v0.6",
-  speechVoiceKey: "aria.web.speech-voice.v0.6"
+  speechVoiceKey: "aria.web.speech-voice.v0.6.1"
 };
 
 const ariaState = {
@@ -34,9 +36,12 @@ const ariaState = {
   isSpeaking: false,
   speechQueue: [],
   currentUtterance: null,
+  remoteAudio: null,
+  remoteAudioUrl: "",
+  speechRequestController: null,
   autoSpeak: true,
   speechRate: 1,
-  preferredVoiceName: ""
+  preferredVoiceName: "openai:coral"
 };
 
 const stateVisuals = {
@@ -236,7 +241,7 @@ async function requestRemoteAria() {
         messages,
         client: {
           name: "ARIA-web",
-          version: config.version || "0.6.0"
+          version: config.version || "0.6.1"
         }
       }),
       signal: controller.signal
@@ -679,16 +684,18 @@ function loadVoiceSettings() {
     ariaState.speechRate = Number.isFinite(rate) && rate >= 0.5 && rate <= 2
       ? rate
       : 1;
-    ariaState.preferredVoiceName = voiceName || "";
+    ariaState.preferredVoiceName = voiceName || "openai:coral";
   } catch (error) {
     console.warn("Unable to restore voice settings:", error);
+    ariaState.preferredVoiceName = "openai:coral";
   }
 }
 
 function saveVoiceSettings() {
   ariaState.autoSpeak = getElement("auto-speak-toggle").checked;
   ariaState.speechRate = Number(getElement("speech-rate-select").value) || 1;
-  ariaState.preferredVoiceName = getElement("speech-voice-select").value || "";
+  ariaState.preferredVoiceName =
+    getElement("speech-voice-select").value || "openai:coral";
 
   try {
     localStorage.setItem(config.autoSpeakKey, String(ariaState.autoSpeak));
@@ -709,80 +716,102 @@ function initializeSpeechSynthesis() {
     "SpeechSynthesisUtterance" in window
   );
 
-  const autoSpeakToggle = getElement("auto-speak-toggle");
-  const rateSelect = getElement("speech-rate-select");
-  const voiceSelect = getElement("speech-voice-select");
-
-  autoSpeakToggle.checked = ariaState.autoSpeak;
-  rateSelect.value = String(ariaState.speechRate);
-
-  if (!ariaState.speechSupported) {
-    autoSpeakToggle.checked = false;
-    autoSpeakToggle.disabled = true;
-    rateSelect.disabled = true;
-    voiceSelect.disabled = true;
-    ariaState.autoSpeak = false;
-    return;
-  }
+  getElement("auto-speak-toggle").checked = ariaState.autoSpeak;
+  getElement("speech-rate-select").value = String(ariaState.speechRate);
 
   populateSpeechVoices();
 
-  if (typeof window.speechSynthesis.addEventListener === "function") {
-    window.speechSynthesis.addEventListener("voiceschanged", populateSpeechVoices);
-  } else {
-    window.speechSynthesis.onvoiceschanged = populateSpeechVoices;
+  if (ariaState.speechSupported) {
+    if (typeof window.speechSynthesis.addEventListener === "function") {
+      window.speechSynthesis.addEventListener(
+        "voiceschanged",
+        populateSpeechVoices
+      );
+    } else {
+      window.speechSynthesis.onvoiceschanged = populateSpeechVoices;
+    }
   }
 }
 
 function populateSpeechVoices() {
-  if (!ariaState.speechSupported) return;
-
   const select = getElement("speech-voice-select");
-  const voices = window.speechSynthesis
-    .getVoices()
-    .filter((voice) => String(voice.lang || "").toLowerCase().startsWith("fr"))
-    .sort((a, b) => {
-      const aBelgian = String(a.lang).toLowerCase() === "fr-be" ? 0 : 1;
-      const bBelgian = String(b.lang).toLowerCase() === "fr-be" ? 0 : 1;
-      return aBelgian - bBelgian || a.name.localeCompare(b.name, "fr");
-    });
+  const previousValue = ariaState.preferredVoiceName || "openai:coral";
+  const voices = ariaState.speechSupported
+    ? window.speechSynthesis
+        .getVoices()
+        .filter((voice) =>
+          String(voice.lang || "").toLowerCase().startsWith("fr")
+        )
+        .sort((a, b) => {
+          const aBelgian =
+            String(a.lang).toLowerCase() === "fr-be" ? 0 : 1;
+          const bBelgian =
+            String(b.lang).toLowerCase() === "fr-be" ? 0 : 1;
+          return (
+            aBelgian - bBelgian ||
+            a.name.localeCompare(b.name, "fr")
+          );
+        })
+    : [];
 
-  const previousValue = ariaState.preferredVoiceName;
   select.replaceChildren();
 
-  const automaticOption = document.createElement("option");
-  automaticOption.value = "";
-  automaticOption.textContent = "Voix française automatique";
-  select.append(automaticOption);
+  const openAIOption = document.createElement("option");
+  openAIOption.value = "openai:coral";
+  openAIOption.textContent = "ARIA — voix IA féminine Coral";
+  select.append(openAIOption);
+
+  const browserAutomaticOption = document.createElement("option");
+  browserAutomaticOption.value = "browser:auto";
+  browserAutomaticOption.textContent = ariaState.speechSupported
+    ? "Voix locale de secours — automatique"
+    : "Voix locale indisponible";
+  browserAutomaticOption.disabled = !ariaState.speechSupported;
+  select.append(browserAutomaticOption);
 
   for (const voice of voices) {
     const option = document.createElement("option");
-    option.value = voice.name;
-    option.textContent = `${voice.name} (${voice.lang})`;
+    option.value = `browser:${voice.name}`;
+    option.textContent = `Voix locale — ${voice.name} (${voice.lang})`;
     select.append(option);
   }
 
-  if (previousValue && voices.some((voice) => voice.name === previousValue)) {
-    select.value = previousValue;
-  } else {
-    select.value = "";
-  }
+  const availableValues = [...select.options].map(
+    (option) => option.value
+  );
+
+  select.value = availableValues.includes(previousValue)
+    ? previousValue
+    : "openai:coral";
+
+  ariaState.preferredVoiceName = select.value;
 }
 
-function getSelectedSpeechVoice() {
+function getSelectedBrowserVoice() {
   if (!ariaState.speechSupported) return null;
 
   const voices = window.speechSynthesis.getVoices();
-  const preferred = voices.find(
-    (voice) => voice.name === ariaState.preferredVoiceName
-  );
+  const selected = String(ariaState.preferredVoiceName || "");
 
-  if (preferred) return preferred;
+  if (selected.startsWith("browser:") && selected !== "browser:auto") {
+    const requestedName = selected.slice("browser:".length);
+    const preferred = voices.find(
+      (voice) => voice.name === requestedName
+    );
+    if (preferred) return preferred;
+  }
 
   return (
-    voices.find((voice) => String(voice.lang).toLowerCase() === "fr-be") ||
-    voices.find((voice) => String(voice.lang).toLowerCase() === "fr-fr") ||
-    voices.find((voice) => String(voice.lang).toLowerCase().startsWith("fr")) ||
+    voices.find(
+      (voice) => String(voice.lang).toLowerCase() === "fr-be"
+    ) ||
+    voices.find(
+      (voice) => String(voice.lang).toLowerCase() === "fr-fr"
+    ) ||
+    voices.find(
+      (voice) =>
+        String(voice.lang).toLowerCase().startsWith("fr")
+    ) ||
     null
   );
 }
@@ -802,12 +831,15 @@ function splitSpeechText(text, maxLength = 240) {
   const prepared = prepareTextForSpeech(text);
   if (!prepared) return [];
 
-  const sentences = prepared.match(/[^.!?;:]+[.!?;:]?|\S+/g) || [prepared];
+  const sentences =
+    prepared.match(/[^.!?;:]+[.!?;:]?|\S+/g) || [prepared];
   const chunks = [];
   let current = "";
 
   for (const sentence of sentences) {
-    const candidate = current ? `${current} ${sentence.trim()}` : sentence.trim();
+    const candidate = current
+      ? `${current} ${sentence.trim()}`
+      : sentence.trim();
 
     if (candidate.length <= maxLength) {
       current = candidate;
@@ -824,6 +856,7 @@ function splitSpeechText(text, maxLength = 240) {
 
       for (const word of words) {
         const wordCandidate = current ? `${current} ${word}` : word;
+
         if (wordCandidate.length > maxLength && current) {
           chunks.push(current);
           current = word;
@@ -838,22 +871,188 @@ function splitSpeechText(text, maxLength = 240) {
   return chunks;
 }
 
-function speakText(text) {
-  if (!ariaState.speechSupported || !ariaState.autoSpeak) return;
-
-  const chunks = splitSpeechText(text);
-  if (!chunks.length) return;
-
-  cancelSpeech(false);
-  ariaState.speechQueue = chunks;
-  ariaState.isSpeaking = true;
-  setState("speaking", "ARIA répond…", "Appuie sur le bouton central pour interrompre la voix.");
-  setVoiceStatus("ARIA te répond.", "Appuie sur le bouton central pour l’interrompre.");
-  updateVoiceInterface();
-  speakNextChunk();
+function getSpeechSpeedProfile() {
+  if (ariaState.speechRate <= 0.9) return "calm";
+  if (ariaState.speechRate >= 1.1) return "fast";
+  return "normal";
 }
 
-function speakNextChunk() {
+async function speakText(text) {
+  if (!ariaState.autoSpeak) return;
+
+  const prepared = prepareTextForSpeech(text).slice(0, 4096);
+  if (!prepared) return;
+
+  cancelSpeech(false);
+  ariaState.isSpeaking = true;
+  setState(
+    "speaking",
+    "ARIA répond…",
+    "Appuie sur le bouton central pour interrompre la voix."
+  );
+  setVoiceStatus(
+    "ARIA te répond.",
+    ariaState.preferredVoiceName === "openai:coral"
+      ? "Voix IA Coral — appuie sur le bouton central pour l’interrompre."
+      : "Voix locale — appuie sur le bouton central pour l’interrompre."
+  );
+  updateVoiceInterface();
+
+  if (ariaState.preferredVoiceName === "openai:coral") {
+    try {
+      await speakWithOpenAI(prepared);
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+
+      console.warn("OpenAI speech unavailable, local fallback:", error);
+
+      if (!ariaState.isSpeaking) return;
+
+      if (ariaState.speechSupported) {
+        setVoiceStatus(
+          "Voix OpenAI indisponible.",
+          "ARIA utilise temporairement la voix locale de secours."
+        );
+        speakWithBrowser(prepared);
+        return;
+      }
+
+      finishSpeech();
+      addMessage(
+        "error",
+        "La voix OpenAI n’est pas disponible et aucune voix locale de secours n’a été trouvée.",
+        false
+      );
+      return;
+    }
+  }
+
+  if (ariaState.speechSupported) {
+    speakWithBrowser(prepared);
+  } else {
+    finishSpeech();
+    addMessage(
+      "error",
+      "Aucune fonction de lecture vocale n’est disponible.",
+      false
+    );
+  }
+}
+
+async function speakWithOpenAI(text) {
+  const controller = new AbortController();
+  ariaState.speechRequestController = controller;
+
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    Number(config.speechRequestTimeoutMs) || 45000
+  );
+
+  try {
+    const response = await fetch(config.speechApiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${ariaState.accessToken}`
+      },
+      body: JSON.stringify({
+        text,
+        voice: "coral",
+        speedProfile: getSpeechSpeedProfile()
+      }),
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      const error = new Error(
+        typeof data.error === "string" && data.error.trim()
+          ? data.error
+          : `La voix OpenAI a répondu avec le statut ${response.status}.`
+      );
+      error.status = response.status;
+      throw error;
+    }
+
+    const audioBlob = await response.blob();
+
+    if (!audioBlob.size) {
+      throw new Error("Le fichier audio OpenAI est vide.");
+    }
+
+    if (!ariaState.isSpeaking) return;
+
+    cleanupRemoteAudio();
+
+    const objectUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio(objectUrl);
+
+    ariaState.remoteAudio = audio;
+    ariaState.remoteAudioUrl = objectUrl;
+
+    audio.preload = "auto";
+    audio.volume = 1;
+
+    audio.addEventListener(
+      "ended",
+      () => finishSpeech(),
+      { once: true }
+    );
+
+    audio.addEventListener(
+      "error",
+      () => {
+        if (!ariaState.isSpeaking) return;
+
+        const fallbackText = text;
+        cleanupRemoteAudio();
+
+        if (ariaState.speechSupported) {
+          setVoiceStatus(
+            "Lecture audio interrompue.",
+            "ARIA utilise la voix locale de secours."
+          );
+          speakWithBrowser(fallbackText);
+        } else {
+          finishSpeech();
+        }
+      },
+      { once: true }
+    );
+
+    try {
+      await audio.play();
+    } catch (error) {
+      cleanupRemoteAudio();
+      throw error;
+    }
+  } finally {
+    window.clearTimeout(timeoutId);
+
+    if (ariaState.speechRequestController === controller) {
+      ariaState.speechRequestController = null;
+    }
+  }
+}
+
+function speakWithBrowser(text) {
+  if (!ariaState.speechSupported) {
+    finishSpeech();
+    return;
+  }
+
+  const chunks = splitSpeechText(text);
+  if (!chunks.length) {
+    finishSpeech();
+    return;
+  }
+
+  ariaState.speechQueue = chunks;
+  speakNextBrowserChunk();
+}
+
+function speakNextBrowserChunk() {
   if (!ariaState.isSpeaking || !ariaState.speechQueue.length) {
     finishSpeech();
     return;
@@ -861,7 +1060,7 @@ function speakNextChunk() {
 
   const text = ariaState.speechQueue.shift();
   const utterance = new SpeechSynthesisUtterance(text);
-  const voice = getSelectedSpeechVoice();
+  const voice = getSelectedBrowserVoice();
 
   utterance.lang = voice?.lang || "fr-BE";
   utterance.voice = voice;
@@ -871,11 +1070,14 @@ function speakNextChunk() {
 
   utterance.onend = () => {
     ariaState.currentUtterance = null;
-    speakNextChunk();
+    speakNextBrowserChunk();
   };
 
   utterance.onerror = (event) => {
-    if (event.error !== "canceled" && event.error !== "interrupted") {
+    if (
+      event.error !== "canceled" &&
+      event.error !== "interrupted"
+    ) {
       console.warn("Speech synthesis error:", event.error);
     }
     finishSpeech();
@@ -885,30 +1087,74 @@ function speakNextChunk() {
   window.speechSynthesis.speak(utterance);
 }
 
+function cleanupRemoteAudio() {
+  if (ariaState.remoteAudio) {
+    try {
+      ariaState.remoteAudio.pause();
+      ariaState.remoteAudio.removeAttribute("src");
+      ariaState.remoteAudio.load();
+    } catch (error) {
+      console.warn("Unable to clean remote audio:", error);
+    }
+  }
+
+  if (ariaState.remoteAudioUrl) {
+    URL.revokeObjectURL(ariaState.remoteAudioUrl);
+  }
+
+  ariaState.remoteAudio = null;
+  ariaState.remoteAudioUrl = "";
+}
+
 function cancelSpeech(updateStatus = true) {
+  if (ariaState.speechRequestController) {
+    ariaState.speechRequestController.abort();
+    ariaState.speechRequestController = null;
+  }
+
+  cleanupRemoteAudio();
+
   if (ariaState.speechSupported) {
     window.speechSynthesis.cancel();
   }
 
   ariaState.speechQueue = [];
   ariaState.currentUtterance = null;
+
   const wasSpeaking = ariaState.isSpeaking;
   ariaState.isSpeaking = false;
 
   if (wasSpeaking && updateStatus) {
-    setState("idle", "Réponse interrompue.", "ARIA est prête à t’écouter.");
-    setVoiceStatus("Voix interrompue.", "Appuie sur le bouton central pour parler.");
+    setState(
+      "idle",
+      "Réponse interrompue.",
+      "ARIA est prête à t’écouter."
+    );
+    setVoiceStatus(
+      "Voix interrompue.",
+      "Appuie sur le bouton central pour parler."
+    );
   }
 
   updateVoiceInterface();
 }
 
 function finishSpeech() {
+  if (ariaState.speechRequestController) {
+    ariaState.speechRequestController.abort();
+    ariaState.speechRequestController = null;
+  }
+
+  cleanupRemoteAudio();
   ariaState.speechQueue = [];
   ariaState.currentUtterance = null;
   ariaState.isSpeaking = false;
+
   setState("idle", "ARIA est prête.", getModeDetail());
-  setVoiceStatus("À ton écoute.", "Appuie sur le bouton central pour parler.");
+  setVoiceStatus(
+    "À ton écoute.",
+    "Appuie sur le bouton central pour parler."
+  );
   updateVoiceInterface();
 }
 
@@ -1212,7 +1458,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "0.6.0").replace(/^v/, "")}`;
+    `v${String(config.version || "0.6.1").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.stream ? "Capture active" : "Aucune capture active";
@@ -1287,9 +1533,7 @@ window.addEventListener("beforeunload", () => {
     } catch {}
   }
 
-  if (ariaState.speechSupported) {
-    window.speechSynthesis.cancel();
-  }
+  cancelSpeech(false);
 });
 
 document.addEventListener("DOMContentLoaded", () => {
