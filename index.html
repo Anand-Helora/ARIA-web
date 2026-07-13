@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Prototype ARIA v0.1" />
+  <title>ARIA — Prototype v0.1</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
+</head>
+<body>
+  <main id="app-shell">
+    <header>
+      <div>
+        <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
+        <h1>ARIA</h1>
+      </div>
+      <span id="privacy-indicator" class="privacy-indicator">Aucune capture active</span>
+    </header>
+
+    <section id="visual-stage" aria-label="Visualisation ARIA"></section>
+
+    <section class="status-panel" aria-live="polite">
+      <p id="status-label">ARIA est prête.</p>
+      <p id="detail-label">Aucune donnée n’est transmise ou enregistrée.</p>
+    </section>
+
+    <section class="command-panel">
+      <label for="command-input">Instruction</label>
+      <div class="command-row">
+        <input
+          id="command-input"
+          type="text"
+          placeholder="Exemple : analyse la fenêtre que je vais partager"
+          autocomplete="off"
+        />
+        <button id="send-button" type="button">Envoyer</button>
+      </div>
+    </section>
+
+    <section class="actions">
+      <button id="share-button" type="button">Partager mon écran</button>
+      <button id="stop-button" type="button" disabled>Arrêter la capture</button>
+      <button id="reset-button" type="button" class="secondary">Réinitialiser</button>
+    </section>
+
+    <section class="preview-card" id="preview-card" hidden>
+      <h2>Aperçu local</h2>
+      <video id="screen-preview" autoplay muted playsinline></video>
+      <p>Ce flux reste affiché localement dans ce prototype. Il n’est ni enregistré ni analysé.</p>
+    </section>
+
+    <footer>
+      Prototype ARIA v0.1 — validation humaine requise avant toute action métier.
+    </footer>
+  </main>
+
+  <script src="sketch.js"></script>
+</body>
+</html>

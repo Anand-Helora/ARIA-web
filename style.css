@@ -1,0 +1,207 @@
+:root {
+  color-scheme: dark;
+  --background: #071016;
+  --panel: rgba(255, 255, 255, 0.055);
+  --border: rgba(255, 255, 255, 0.12);
+  --text: #eef6f8;
+  --muted: #94a8af;
+  --accent: #60d7e8;
+  --danger: #ffb3b3;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at 50% 32%, rgba(61, 156, 175, 0.16), transparent 34rem),
+    var(--background);
+  color: var(--text);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.85rem 1.15rem;
+  background: rgba(96, 215, 232, 0.12);
+  color: var(--text);
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: rgba(96, 215, 232, 0.2);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+button.secondary {
+  background: transparent;
+}
+
+input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.95rem 1.1rem;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text);
+  outline: none;
+}
+
+input:focus {
+  border-color: rgba(96, 215, 232, 0.65);
+}
+
+#app-shell {
+  width: min(920px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2rem 0 3rem;
+}
+
+header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+h1 {
+  margin: 0;
+  letter-spacing: 0.2em;
+  font-size: clamp(2rem, 7vw, 4.2rem);
+}
+
+.eyebrow {
+  margin: 0 0 0.35rem;
+  color: var(--muted);
+  font-size: 0.67rem;
+  letter-spacing: 0.11em;
+}
+
+.privacy-indicator {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.55rem 0.8rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.privacy-indicator.active {
+  color: var(--danger);
+  border-color: rgba(255, 179, 179, 0.45);
+}
+
+#visual-stage {
+  min-height: 390px;
+  display: grid;
+  place-items: center;
+}
+
+#visual-stage canvas {
+  display: block;
+  max-width: 100%;
+  height: auto !important;
+}
+
+.status-panel,
+.command-panel,
+.preview-card {
+  border: 1px solid var(--border);
+  border-radius: 1.3rem;
+  background: var(--panel);
+  backdrop-filter: blur(14px);
+}
+
+.status-panel {
+  text-align: center;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.status-panel p {
+  margin: 0.25rem 0;
+}
+
+#detail-label {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.command-panel {
+  padding: 1rem;
+}
+
+.command-panel label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0 0 0.55rem 0.4rem;
+}
+
+.command-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.6rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: center;
+  margin: 1rem 0;
+}
+
+.preview-card {
+  padding: 1rem;
+}
+
+.preview-card h2 {
+  margin-top: 0;
+  font-size: 1rem;
+}
+
+.preview-card video {
+  width: 100%;
+  max-height: 420px;
+  border-radius: 0.9rem;
+  background: #000;
+}
+
+.preview-card p,
+footer {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+footer {
+  text-align: center;
+  margin-top: 1.5rem;
+}
+
+@media (max-width: 620px) {
+  header {
+    display: block;
+  }
+
+  .privacy-indicator {
+    display: inline-block;
+    margin-top: 0.75rem;
+  }
+
+  .command-row {
+    grid-template-columns: 1fr;
+  }
+}
