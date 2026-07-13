@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v0.5.1</title>
+  <title>ARIA — v0.6</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
   <script src="config.js"></script>
@@ -17,7 +17,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v0.5.1</span>
+          <span id="version-label" class="version-badge">v0.6</span>
         </div>
       </div>
       <div class="header-status">
@@ -35,6 +35,70 @@
     </header>
 
     <section id="visual-stage" aria-label="Visualisation ARIA"></section>
+
+    <section id="voice-console" class="voice-console" aria-labelledby="voice-console-title" hidden>
+      <div class="voice-console-copy">
+        <p class="section-kicker">MODE VOCAL</p>
+        <h2 id="voice-console-title">Parler avec ARIA</h2>
+        <p id="voice-status-text">
+          Appuie sur le bouton central, parle naturellement, puis appuie à nouveau pour envoyer.
+        </p>
+        <p id="voice-live-transcript" class="voice-live-transcript" aria-live="polite">
+          En attente de ta voix.
+        </p>
+      </div>
+
+      <button
+        id="voice-main-button"
+        class="voice-main-button"
+        type="button"
+        aria-label="Parler à ARIA"
+      >
+        <span id="voice-main-icon" class="voice-main-icon" aria-hidden="true">🎙</span>
+        <span id="voice-main-label">Parler à ARIA</span>
+      </button>
+
+      <div class="voice-secondary-controls">
+        <button id="text-mode-button" class="secondary compact" type="button">
+          Afficher le clavier
+        </button>
+
+        <button id="stop-speech-button" class="secondary compact" type="button" hidden>
+          Interrompre la voix
+        </button>
+
+        <details class="voice-settings">
+          <summary>Réglages vocaux</summary>
+          <div class="voice-settings-grid">
+            <label class="toggle-setting" for="auto-speak-toggle">
+              <input id="auto-speak-toggle" type="checkbox" checked />
+              <span>Lire automatiquement les réponses</span>
+            </label>
+
+            <label for="speech-rate-select">
+              Vitesse
+              <select id="speech-rate-select">
+                <option value="0.85">Calme</option>
+                <option value="1" selected>Normale</option>
+                <option value="1.15">Rapide</option>
+              </select>
+            </label>
+
+            <label for="speech-voice-select">
+              Voix
+              <select id="speech-voice-select">
+                <option value="">Voix française automatique</option>
+              </select>
+            </label>
+          </div>
+        </details>
+      </div>
+
+      <p class="voice-privacy-note">
+        La reconnaissance et la lecture vocales utilisent les fonctions disponibles dans ton navigateur.
+        Aucun fichier audio n’est conservé par ARIA Web.
+      </p>
+    </section>
 
     <section id="status-panel" class="status-panel" aria-live="polite">
       <p id="status-label">ARIA est prête.</p>
@@ -96,7 +160,7 @@
       </div>
     </section>
 
-    <section class="command-panel">
+    <section id="command-panel" class="command-panel">
       <label for="command-input">Instruction</label>
       <div class="command-row">
         <textarea
@@ -137,7 +201,7 @@
         </div>
       </div>
       <p class="footer-technical">
-        ARIA Web v0.5.1 · interface épurée après connexion · BRAIN privé actif
+        ARIA Web v0.6 · mode vocal · BRAIN privé actif
       </p>
       <p class="footer-safety">
         Validation humaine requise avant toute action métier.

@@ -1,4 +1,4 @@
-# ARIA Web v0.5.1
+# ARIA Web v0.6.0
 
 Interface publique d’ARIA reliée à **ARIA Core** sur Vercel.
 
@@ -68,3 +68,26 @@ Lorsque `ARIA_ACCESS_TOKEN` est actif dans la session :
 - les deux grands panneaux réapparaissent automatiquement après déconnexion.
 
 Cette adaptation prépare l’interface au futur fonctionnement vocal uniquement.
+
+
+## Mode vocal v0.6
+
+Après connexion à ARIA Core, l’interface affiche un grand bouton central :
+
+1. appuyer pour démarrer l’écoute ;
+2. parler naturellement ;
+3. appuyer de nouveau pour envoyer immédiatement, ou marquer une pause ;
+4. ARIA répond par texte et lit automatiquement sa réponse.
+
+Fonctions incluses :
+
+- interruption immédiate de la lecture vocale ;
+- état visuel `écoute`, `réflexion` et `réponse` ;
+- sélection d’une voix française disponible dans le navigateur ;
+- réglage de la vitesse ;
+- activation ou désactivation de la lecture automatique ;
+- clavier masqué par défaut, mais accessible ;
+- conversation masquée par défaut sur un nouvel appareil ;
+- aucune conservation de fichier audio par ARIA Web.
+
+La qualité et la disponibilité des voix dépendent du navigateur et du système d’exploitation.

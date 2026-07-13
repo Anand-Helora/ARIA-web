@@ -1,14 +1,18 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "0.5.1",
+  version: "0.6.0",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   requestTimeoutMs: 45000,
   maxHistoryMessages: 20,
   localStorageKey: "aria.web.conversation.v0.3",
   sessionTokenKey: "aria.web.access-token.session.v0.3",
-  conversationVisibilityKey: "aria.web.conversation-visible.v0.5"
+  conversationVisibilityKey: "aria.web.conversation-visible.v0.6",
+  textInputVisibilityKey: "aria.web.text-input-visible.v0.6",
+  autoSpeakKey: "aria.web.auto-speak.v0.6",
+  speechRateKey: "aria.web.speech-rate.v0.6",
+  speechVoiceKey: "aria.web.speech-voice.v0.6"
 };
 
 const ariaState = {
@@ -21,7 +25,18 @@ const ariaState = {
   isBusy: false,
   history: [],
   accessToken: "",
-  isConversationVisible: true
+  isConversationVisible: false,
+  isTextInputVisible: false,
+  recognitionMode: null,
+  voiceTranscript: "",
+  recognitionFailed: false,
+  speechSupported: false,
+  isSpeaking: false,
+  speechQueue: [],
+  currentUtterance: null,
+  autoSpeak: true,
+  speechRate: 1,
+  preferredVoiceName: ""
 };
 
 const stateVisuals = {
@@ -102,6 +117,12 @@ function initializeInterface() {
   });
 
   getElement("voice-button").addEventListener("click", toggleVoiceRecognition);
+  getElement("voice-main-button").addEventListener("click", handleMainVoiceButton);
+  getElement("stop-speech-button").addEventListener("click", cancelSpeech);
+  getElement("text-mode-button").addEventListener("click", toggleTextInputVisibility);
+  getElement("auto-speak-toggle").addEventListener("change", saveVoiceSettings);
+  getElement("speech-rate-select").addEventListener("change", saveVoiceSettings);
+  getElement("speech-voice-select").addEventListener("change", saveVoiceSettings);
   getElement("share-button").addEventListener("click", startScreenShare);
   getElement("stop-button").addEventListener("click", () => stopScreenShare(true));
   getElement("reset-button").addEventListener("click", resetAriaState);
@@ -118,8 +139,11 @@ function initializeInterface() {
 
   loadAccessToken();
   loadConversationVisibility();
+  loadTextInputVisibility();
+  loadVoiceSettings();
   loadHistory();
   initializeVoiceRecognition();
+  initializeSpeechSynthesis();
   updateInterface();
   updateConnectionIndicator();
   getElement("command-input").focus();
@@ -131,15 +155,16 @@ function getElement(id) {
   return element;
 }
 
-async function handleCommand() {
+async function handleCommand(options = {}) {
   if (ariaState.isBusy) return;
 
+  const source = options.source === "voice" ? "voice" : "text";
   const input = getElement("command-input");
   const command = input.value.trim();
 
   if (!command) {
     setState("error", "Instruction vide.", "Écris ou dicte une demande avant de l’envoyer.");
-    input.focus();
+    if (ariaState.isTextInputVisible) input.focus();
     return;
   }
 
@@ -150,15 +175,18 @@ async function handleCommand() {
   }
 
   input.value = "";
+  ariaState.voiceTranscript = "";
   addMessage("user", command, true);
   setBusy(true);
   setState("thinking", "ARIA réfléchit…", "La demande est transmise à ARIA Core.");
   const typingId = addTypingMessage();
+  let answerToSpeak = "";
 
   try {
     const answer = await requestRemoteAria();
     removeMessageElement(typingId);
     addMessage("assistant", answer, true);
+    answerToSpeak = answer;
     setState("idle", "Réponse terminée.", "Le moteur privé ARIA Core est connecté.");
   } catch (error) {
     console.error("ARIA request failed:", error);
@@ -175,7 +203,13 @@ async function handleCommand() {
     }
   } finally {
     setBusy(false);
-    input.focus();
+    if (ariaState.isTextInputVisible && source !== "voice") {
+      input.focus();
+    }
+  }
+
+  if (answerToSpeak && ariaState.autoSpeak) {
+    speakText(answerToSpeak);
   }
 }
 
@@ -202,7 +236,7 @@ async function requestRemoteAria() {
         messages,
         client: {
           name: "ARIA-web",
-          version: config.version || "0.5.1"
+          version: config.version || "0.6.0"
         }
       }),
       signal: controller.signal
@@ -307,6 +341,12 @@ function loadAccessToken() {
 }
 
 function clearAccessToken() {
+  if (ariaState.isListening && ariaState.recognition) {
+    try {
+      ariaState.recognition.abort();
+    } catch {}
+  }
+  cancelSpeech(false);
   ariaState.accessToken = "";
   try {
     sessionStorage.removeItem(config.sessionTokenKey);
@@ -330,14 +370,14 @@ function loadConversationVisibility() {
     const storedValue = localStorage.getItem(config.conversationVisibilityKey);
 
     if (storedValue === null) {
-      ariaState.isConversationVisible = true;
+      ariaState.isConversationVisible = false;
       return;
     }
 
     ariaState.isConversationVisible = storedValue === "true";
   } catch (error) {
     console.warn("Unable to restore conversation visibility:", error);
-    ariaState.isConversationVisible = true;
+    ariaState.isConversationVisible = false;
   }
 }
 
@@ -382,13 +422,66 @@ function updateConversationVisibility() {
   }
 }
 
+
+function loadTextInputVisibility() {
+  try {
+    const storedValue = localStorage.getItem(config.textInputVisibilityKey);
+    ariaState.isTextInputVisible = storedValue === "true";
+  } catch (error) {
+    console.warn("Unable to restore text input visibility:", error);
+    ariaState.isTextInputVisible = false;
+  }
+}
+
+function toggleTextInputVisibility() {
+  setTextInputVisibility(!ariaState.isTextInputVisible);
+}
+
+function setTextInputVisibility(isVisible) {
+  ariaState.isTextInputVisible = Boolean(isVisible);
+
+  try {
+    localStorage.setItem(
+      config.textInputVisibilityKey,
+      String(ariaState.isTextInputVisible)
+    );
+  } catch (error) {
+    console.warn("Unable to save text input visibility:", error);
+  }
+
+  updateTextInputVisibility();
+}
+
+function updateTextInputVisibility() {
+  if (!domReady) return;
+
+  const connected = Boolean(ariaState.accessToken);
+  const panel = getElement("command-panel");
+  const button = getElement("text-mode-button");
+
+  panel.hidden = !connected || !ariaState.isTextInputVisible;
+  button.textContent = ariaState.isTextInputVisible
+    ? "Masquer le clavier"
+    : "Afficher le clavier";
+  button.setAttribute(
+    "aria-pressed",
+    String(ariaState.isTextInputVisible)
+  );
+}
+
 function initializeVoiceRecognition() {
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceButton = getElement("voice-button");
+  const mainVoiceButton = getElement("voice-main-button");
 
   if (!Recognition) {
     voiceButton.disabled = true;
+    mainVoiceButton.disabled = true;
     voiceButton.title = "La dictée vocale n’est pas disponible dans ce navigateur.";
+    setVoiceStatus(
+      "Reconnaissance vocale indisponible",
+      "Utilise le clavier ou essaie Microsoft Edge / Google Chrome."
+    );
     return;
   }
 
@@ -396,31 +489,72 @@ function initializeVoiceRecognition() {
   recognition.lang = "fr-BE";
   recognition.continuous = false;
   recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
 
   recognition.onstart = () => {
     ariaState.isListening = true;
+    ariaState.recognitionFailed = false;
     updateVoiceButton();
-    setState("listening", "Je t’écoute…", "Parle naturellement, puis marque une courte pause.");
+    updateVoiceInterface();
+
+    if (ariaState.recognitionMode === "voiceTurn") {
+      setState("listening", "Je t’écoute…", "Parle naturellement. Appuie à nouveau pour envoyer immédiatement.");
+      setVoiceStatus("Je t’écoute…", "Parle naturellement, puis marque une courte pause.");
+    } else {
+      setState("listening", "Dictée en cours…", "Le texte sera placé dans la zone de saisie.");
+    }
   };
 
   recognition.onresult = (event) => {
     let transcript = "";
-    for (let index = event.resultIndex; index < event.results.length; index += 1) {
+
+    for (let index = 0; index < event.results.length; index += 1) {
       transcript += event.results[index][0].transcript;
     }
-    getElement("command-input").value = transcript.trim();
+
+    const cleanTranscript = transcript.trim();
+    getElement("command-input").value = cleanTranscript;
+
+    if (ariaState.recognitionMode === "voiceTurn") {
+      ariaState.voiceTranscript = cleanTranscript;
+      getElement("voice-live-transcript").textContent =
+        cleanTranscript || "Je t’écoute…";
+    }
   };
 
   recognition.onerror = (event) => {
-    setState("error", "La dictée vocale s’est interrompue.", getVoiceErrorMessage(event.error));
+    ariaState.recognitionFailed = true;
+    setState("error", "La reconnaissance vocale s’est interrompue.", getVoiceErrorMessage(event.error));
+    setVoiceStatus("Je n’ai pas pu t’entendre.", getVoiceErrorMessage(event.error));
   };
 
   recognition.onend = () => {
+    const completedMode = ariaState.recognitionMode;
+    const transcript = getElement("command-input").value.trim();
+
     ariaState.isListening = false;
+    ariaState.recognitionMode = null;
     updateVoiceButton();
+    updateVoiceInterface();
+
+    if (completedMode === "voiceTurn") {
+      if (ariaState.recognitionFailed) {
+        ariaState.voiceTranscript = "";
+        return;
+      }
+
+      if (transcript) {
+        setVoiceStatus("Instruction reçue.", "ARIA prépare sa réponse.");
+        window.setTimeout(() => handleCommand({ source: "voice" }), 80);
+      } else {
+        setState("idle", "ARIA est prête.", getModeDetail());
+        setVoiceStatus("Je n’ai rien entendu.", "Appuie à nouveau pour réessayer.");
+      }
+      return;
+    }
 
     if (ariaState.mode === "listening") {
-      const hasText = getElement("command-input").value.trim().length > 0;
+      const hasText = transcript.length > 0;
       setState(
         "idle",
         hasText ? "Dictée terminée." : "ARIA est prête.",
@@ -432,13 +566,80 @@ function initializeVoiceRecognition() {
   ariaState.recognition = recognition;
 }
 
+function handleMainVoiceButton() {
+  if (!ariaState.accessToken) {
+    openAccessDialog();
+    return;
+  }
+
+  if (ariaState.isSpeaking) {
+    cancelSpeech();
+    return;
+  }
+
+  if (ariaState.isListening && ariaState.recognitionMode === "voiceTurn") {
+    stopVoiceRecognition();
+    return;
+  }
+
+  if (ariaState.isBusy) return;
+  startVoiceTurn();
+}
+
+function startVoiceTurn() {
+  if (!ariaState.recognition) {
+    setVoiceStatus(
+      "Reconnaissance vocale indisponible",
+      "Utilise le clavier pour continuer."
+    );
+    return;
+  }
+
+  cancelSpeech(false);
+  ariaState.recognitionMode = "voiceTurn";
+  ariaState.voiceTranscript = "";
+  ariaState.recognitionFailed = false;
+  getElement("command-input").value = "";
+  getElement("voice-live-transcript").textContent = "Activation du microphone…";
+
+  try {
+    ariaState.recognition.start();
+  } catch (error) {
+    ariaState.recognitionMode = null;
+    console.error("Voice turn start error:", error);
+    setState("error", "Impossible de démarrer l’écoute.", getReadableError(error));
+    setVoiceStatus("Microphone indisponible", getReadableError(error));
+  }
+}
+
+function stopVoiceRecognition() {
+  if (!ariaState.recognition || !ariaState.isListening) return;
+
+  try {
+    ariaState.recognition.stop();
+    setVoiceStatus("Envoi en cours…", "ARIA traite ce que tu viens de dire.");
+  } catch (error) {
+    console.error("Voice recognition stop error:", error);
+  }
+}
+
 function toggleVoiceRecognition() {
   if (!ariaState.recognition) return;
 
+  if (ariaState.isSpeaking) {
+    cancelSpeech();
+  }
+
   try {
-    if (ariaState.isListening) ariaState.recognition.stop();
-    else ariaState.recognition.start();
+    if (ariaState.isListening) {
+      ariaState.recognition.stop();
+    } else {
+      ariaState.recognitionMode = "dictation";
+      ariaState.recognitionFailed = false;
+      ariaState.recognition.start();
+    }
   } catch (error) {
+    ariaState.recognitionMode = null;
     console.error("Voice recognition error:", error);
     setState("error", "Impossible de démarrer la dictée.", getReadableError(error));
   }
@@ -453,6 +654,7 @@ function updateVoiceButton() {
   );
 }
 
+
 function getVoiceErrorMessage(code) {
   const messages = {
     "not-allowed": "Autorise l’accès au microphone dans les réglages du navigateur.",
@@ -464,6 +666,301 @@ function getVoiceErrorMessage(code) {
   };
 
   return messages[code] || `Erreur de dictée : ${code || "inconnue"}.`;
+}
+
+
+function loadVoiceSettings() {
+  try {
+    const autoSpeak = localStorage.getItem(config.autoSpeakKey);
+    const rate = Number(localStorage.getItem(config.speechRateKey));
+    const voiceName = localStorage.getItem(config.speechVoiceKey);
+
+    ariaState.autoSpeak = autoSpeak === null ? true : autoSpeak === "true";
+    ariaState.speechRate = Number.isFinite(rate) && rate >= 0.5 && rate <= 2
+      ? rate
+      : 1;
+    ariaState.preferredVoiceName = voiceName || "";
+  } catch (error) {
+    console.warn("Unable to restore voice settings:", error);
+  }
+}
+
+function saveVoiceSettings() {
+  ariaState.autoSpeak = getElement("auto-speak-toggle").checked;
+  ariaState.speechRate = Number(getElement("speech-rate-select").value) || 1;
+  ariaState.preferredVoiceName = getElement("speech-voice-select").value || "";
+
+  try {
+    localStorage.setItem(config.autoSpeakKey, String(ariaState.autoSpeak));
+    localStorage.setItem(config.speechRateKey, String(ariaState.speechRate));
+    localStorage.setItem(config.speechVoiceKey, ariaState.preferredVoiceName);
+  } catch (error) {
+    console.warn("Unable to save voice settings:", error);
+  }
+
+  if (!ariaState.autoSpeak && ariaState.isSpeaking) {
+    cancelSpeech();
+  }
+}
+
+function initializeSpeechSynthesis() {
+  ariaState.speechSupported = Boolean(
+    "speechSynthesis" in window &&
+    "SpeechSynthesisUtterance" in window
+  );
+
+  const autoSpeakToggle = getElement("auto-speak-toggle");
+  const rateSelect = getElement("speech-rate-select");
+  const voiceSelect = getElement("speech-voice-select");
+
+  autoSpeakToggle.checked = ariaState.autoSpeak;
+  rateSelect.value = String(ariaState.speechRate);
+
+  if (!ariaState.speechSupported) {
+    autoSpeakToggle.checked = false;
+    autoSpeakToggle.disabled = true;
+    rateSelect.disabled = true;
+    voiceSelect.disabled = true;
+    ariaState.autoSpeak = false;
+    return;
+  }
+
+  populateSpeechVoices();
+
+  if (typeof window.speechSynthesis.addEventListener === "function") {
+    window.speechSynthesis.addEventListener("voiceschanged", populateSpeechVoices);
+  } else {
+    window.speechSynthesis.onvoiceschanged = populateSpeechVoices;
+  }
+}
+
+function populateSpeechVoices() {
+  if (!ariaState.speechSupported) return;
+
+  const select = getElement("speech-voice-select");
+  const voices = window.speechSynthesis
+    .getVoices()
+    .filter((voice) => String(voice.lang || "").toLowerCase().startsWith("fr"))
+    .sort((a, b) => {
+      const aBelgian = String(a.lang).toLowerCase() === "fr-be" ? 0 : 1;
+      const bBelgian = String(b.lang).toLowerCase() === "fr-be" ? 0 : 1;
+      return aBelgian - bBelgian || a.name.localeCompare(b.name, "fr");
+    });
+
+  const previousValue = ariaState.preferredVoiceName;
+  select.replaceChildren();
+
+  const automaticOption = document.createElement("option");
+  automaticOption.value = "";
+  automaticOption.textContent = "Voix française automatique";
+  select.append(automaticOption);
+
+  for (const voice of voices) {
+    const option = document.createElement("option");
+    option.value = voice.name;
+    option.textContent = `${voice.name} (${voice.lang})`;
+    select.append(option);
+  }
+
+  if (previousValue && voices.some((voice) => voice.name === previousValue)) {
+    select.value = previousValue;
+  } else {
+    select.value = "";
+  }
+}
+
+function getSelectedSpeechVoice() {
+  if (!ariaState.speechSupported) return null;
+
+  const voices = window.speechSynthesis.getVoices();
+  const preferred = voices.find(
+    (voice) => voice.name === ariaState.preferredVoiceName
+  );
+
+  if (preferred) return preferred;
+
+  return (
+    voices.find((voice) => String(voice.lang).toLowerCase() === "fr-be") ||
+    voices.find((voice) => String(voice.lang).toLowerCase() === "fr-fr") ||
+    voices.find((voice) => String(voice.lang).toLowerCase().startsWith("fr")) ||
+    null
+  );
+}
+
+function prepareTextForSpeech(text) {
+  return String(text || "")
+    .replace(/```[\s\S]*?```/g, " Extrait de code non lu. ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/https?:\/\/\S+/g, " lien ")
+    .replace(/[#>*_~|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function splitSpeechText(text, maxLength = 240) {
+  const prepared = prepareTextForSpeech(text);
+  if (!prepared) return [];
+
+  const sentences = prepared.match(/[^.!?;:]+[.!?;:]?|\S+/g) || [prepared];
+  const chunks = [];
+  let current = "";
+
+  for (const sentence of sentences) {
+    const candidate = current ? `${current} ${sentence.trim()}` : sentence.trim();
+
+    if (candidate.length <= maxLength) {
+      current = candidate;
+      continue;
+    }
+
+    if (current) chunks.push(current);
+
+    if (sentence.length <= maxLength) {
+      current = sentence.trim();
+    } else {
+      const words = sentence.trim().split(/\s+/);
+      current = "";
+
+      for (const word of words) {
+        const wordCandidate = current ? `${current} ${word}` : word;
+        if (wordCandidate.length > maxLength && current) {
+          chunks.push(current);
+          current = word;
+        } else {
+          current = wordCandidate;
+        }
+      }
+    }
+  }
+
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+function speakText(text) {
+  if (!ariaState.speechSupported || !ariaState.autoSpeak) return;
+
+  const chunks = splitSpeechText(text);
+  if (!chunks.length) return;
+
+  cancelSpeech(false);
+  ariaState.speechQueue = chunks;
+  ariaState.isSpeaking = true;
+  setState("speaking", "ARIA répond…", "Appuie sur le bouton central pour interrompre la voix.");
+  setVoiceStatus("ARIA te répond.", "Appuie sur le bouton central pour l’interrompre.");
+  updateVoiceInterface();
+  speakNextChunk();
+}
+
+function speakNextChunk() {
+  if (!ariaState.isSpeaking || !ariaState.speechQueue.length) {
+    finishSpeech();
+    return;
+  }
+
+  const text = ariaState.speechQueue.shift();
+  const utterance = new SpeechSynthesisUtterance(text);
+  const voice = getSelectedSpeechVoice();
+
+  utterance.lang = voice?.lang || "fr-BE";
+  utterance.voice = voice;
+  utterance.rate = ariaState.speechRate;
+  utterance.pitch = 1;
+  utterance.volume = 1;
+
+  utterance.onend = () => {
+    ariaState.currentUtterance = null;
+    speakNextChunk();
+  };
+
+  utterance.onerror = (event) => {
+    if (event.error !== "canceled" && event.error !== "interrupted") {
+      console.warn("Speech synthesis error:", event.error);
+    }
+    finishSpeech();
+  };
+
+  ariaState.currentUtterance = utterance;
+  window.speechSynthesis.speak(utterance);
+}
+
+function cancelSpeech(updateStatus = true) {
+  if (ariaState.speechSupported) {
+    window.speechSynthesis.cancel();
+  }
+
+  ariaState.speechQueue = [];
+  ariaState.currentUtterance = null;
+  const wasSpeaking = ariaState.isSpeaking;
+  ariaState.isSpeaking = false;
+
+  if (wasSpeaking && updateStatus) {
+    setState("idle", "Réponse interrompue.", "ARIA est prête à t’écouter.");
+    setVoiceStatus("Voix interrompue.", "Appuie sur le bouton central pour parler.");
+  }
+
+  updateVoiceInterface();
+}
+
+function finishSpeech() {
+  ariaState.speechQueue = [];
+  ariaState.currentUtterance = null;
+  ariaState.isSpeaking = false;
+  setState("idle", "ARIA est prête.", getModeDetail());
+  setVoiceStatus("À ton écoute.", "Appuie sur le bouton central pour parler.");
+  updateVoiceInterface();
+}
+
+function setVoiceStatus(title, detail) {
+  if (!domReady) return;
+  getElement("voice-console-title").textContent = title;
+  getElement("voice-status-text").textContent = detail;
+}
+
+function updateVoiceInterface() {
+  if (!domReady) return;
+
+  const connected = Boolean(ariaState.accessToken);
+  const consolePanel = getElement("voice-console");
+  const mainButton = getElement("voice-main-button");
+  const icon = getElement("voice-main-icon");
+  const label = getElement("voice-main-label");
+  const transcript = getElement("voice-live-transcript");
+  const stopButton = getElement("stop-speech-button");
+
+  consolePanel.hidden = !connected;
+  stopButton.hidden = !ariaState.isSpeaking;
+
+  mainButton.classList.toggle("listening", ariaState.isListening);
+  mainButton.classList.toggle("speaking", ariaState.isSpeaking);
+  mainButton.classList.toggle("thinking", ariaState.isBusy);
+
+  if (!connected) {
+    mainButton.disabled = true;
+    icon.textContent = "🔒";
+    label.textContent = "Connexion requise";
+  } else if (ariaState.isBusy) {
+    mainButton.disabled = true;
+    icon.textContent = "◌";
+    label.textContent = "ARIA réfléchit";
+  } else if (ariaState.isSpeaking) {
+    mainButton.disabled = false;
+    icon.textContent = "■";
+    label.textContent = "Interrompre ARIA";
+  } else if (ariaState.isListening && ariaState.recognitionMode === "voiceTurn") {
+    mainButton.disabled = false;
+    icon.textContent = "↑";
+    label.textContent = "Envoyer maintenant";
+  } else {
+    mainButton.disabled = !ariaState.recognition;
+    icon.textContent = "🎙";
+    label.textContent = "Parler à ARIA";
+  }
+
+  if (!ariaState.isListening && !ariaState.voiceTranscript && !ariaState.isSpeaking) {
+    transcript.textContent = "En attente de ta voix.";
+  }
 }
 
 async function startScreenShare() {
@@ -525,6 +1022,8 @@ function stopScreenShare(updateStatus = true) {
 
 function resetAriaState() {
   if (ariaState.isListening && ariaState.recognition) ariaState.recognition.stop();
+  cancelSpeech(false);
+  ariaState.voiceTranscript = "";
   stopScreenShare(false);
   getElement("command-input").value = "";
   setState("idle", "ARIA est prête.", getModeDetail());
@@ -696,6 +1195,8 @@ function setBusy(isBusy) {
   getElement("voice-button").disabled = isBusy || !ariaState.recognition;
   getElement("command-input").disabled = isBusy;
   getElement("connect-button").disabled = isBusy;
+  getElement("connection-indicator").disabled = isBusy;
+  updateVoiceInterface();
 }
 
 function setState(mode, message, detail) {
@@ -711,12 +1212,14 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "0.5.1").replace(/^v/, "")}`;
+    `v${String(config.version || "0.6.0").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.stream ? "Capture active" : "Aucune capture active";
   privacy.classList.toggle("active", Boolean(ariaState.stream));
   updateConversationVisibility();
+  updateTextInputVisibility();
+  updateVoiceInterface();
 }
 
 function updateConnectionIndicator() {
@@ -749,6 +1252,8 @@ function updateConnectionIndicator() {
   // Une fois connecté, l’interface principale est automatiquement épurée.
   statusPanel.hidden = connected;
   connectionPanel.hidden = connected;
+  updateTextInputVisibility();
+  updateVoiceInterface();
 }
 
 function getModeDetail() {
@@ -773,6 +1278,19 @@ function createId() {
 
   return `aria-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
+
+
+window.addEventListener("beforeunload", () => {
+  if (ariaState.isListening && ariaState.recognition) {
+    try {
+      ariaState.recognition.abort();
+    } catch {}
+  }
+
+  if (ariaState.speechSupported) {
+    window.speechSynthesis.cancel();
+  }
+});
 
 document.addEventListener("DOMContentLoaded", () => {
   try {
