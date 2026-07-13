@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "0.7.0",
+  version: "0.7.1",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -13,7 +13,7 @@ const config = window.ARIA_CONFIG || {
   localStorageKey: "aria.web.conversation.v0.3",
   sessionTokenKey: "aria.web.access-token.session.v0.3",
   conversationVisibilityKey: "aria.web.conversation-visible.v0.6",
-  textInputVisibilityKey: "aria.web.text-input-visible.v0.6",
+  textInputVisibilityKey: "aria.web.text-input-visible.v0.7.1",
   autoSpeakKey: "aria.web.auto-speak.v0.6",
   speechRateKey: "aria.web.speech-rate.v0.6",
   speechVoiceKey: "aria.web.speech-voice.v0.6.1"
@@ -30,7 +30,7 @@ const ariaState = {
   history: [],
   accessToken: "",
   isConversationVisible: false,
-  isTextInputVisible: false,
+  isTextInputVisible: true,
   recognitionMode: null,
   voiceTranscript: "",
   recognitionFailed: false,
@@ -46,7 +46,8 @@ const ariaState = {
   preferredVoiceName: "openai:coral",
   pendingMemory: null,
   savedMemories: [],
-  memoryBusy: false
+  memoryBusy: false,
+  memoryStorageConfigured: null
 };
 
 const stateVisuals = {
@@ -202,6 +203,8 @@ async function handleCommand(options = {}) {
     const result = await requestRemoteAria();
     removeMessageElement(typingId);
     addMessage("assistant", result.answer, true);
+    ariaState.memoryStorageConfigured =
+      result.memoryStorageConfigured;
     setPendingMemory(result.memoryProposal);
     answerToSpeak = result.memoryProposal
       ? `${result.answer} Cette information semble utile pour BRAIN. Dis mémorise ou ignore, ou utilise les boutons affichés.`
@@ -255,7 +258,7 @@ async function requestRemoteAria() {
         messages,
         client: {
           name: "ARIA-web",
-          version: config.version || "0.7.0"
+          version: config.version || "0.7.1"
         }
       }),
       signal: controller.signal
@@ -285,6 +288,10 @@ async function requestRemoteAria() {
         data.memoryProposal &&
         typeof data.memoryProposal === "object"
           ? data.memoryProposal
+          : null,
+      memoryStorageConfigured:
+        typeof data.brain?.storageConfigured === "boolean"
+          ? data.brain.storageConfigured
           : null
     };
   } finally {
@@ -375,6 +382,7 @@ function clearAccessToken() {
   cancelSpeech(false);
   ariaState.pendingMemory = null;
   ariaState.savedMemories = [];
+  ariaState.memoryStorageConfigured = null;
   updateMemoryProposalCard();
   ariaState.accessToken = "";
   try {
@@ -455,10 +463,11 @@ function updateConversationVisibility() {
 function loadTextInputVisibility() {
   try {
     const storedValue = localStorage.getItem(config.textInputVisibilityKey);
-    ariaState.isTextInputVisible = storedValue === "true";
+    ariaState.isTextInputVisible =
+      storedValue === null ? true : storedValue === "true";
   } catch (error) {
     console.warn("Unable to restore text input visibility:", error);
-    ariaState.isTextInputVisible = false;
+    ariaState.isTextInputVisible = true;
   }
 }
 
@@ -543,13 +552,17 @@ function updateMemoryProposalCard() {
     proposal.title;
   getElement("memory-proposal-summary").textContent =
     proposal.summary;
-  getElement("memory-proposal-reason").textContent =
-    proposal.reason
-      ? `Pourquoi : ${proposal.reason}`
+  const storageWarning =
+    ariaState.memoryStorageConfigured === false
+      ? " Le stockage BRAIN permanent n’est pas encore détecté dans Vercel."
       : "";
 
+  getElement("memory-proposal-reason").textContent =
+    `${proposal.reason ? `Pourquoi : ${proposal.reason}` : ""}${storageWarning}`;
+
   getElement("approve-memory-button").disabled =
-    ariaState.memoryBusy;
+    ariaState.memoryBusy ||
+    ariaState.memoryStorageConfigured === false;
   getElement("dismiss-memory-button").disabled =
     ariaState.memoryBusy;
 }
@@ -643,6 +656,15 @@ async function memoryApiRequest(method, body = null, query = "") {
 
 async function approvePendingMemory() {
   if (!ariaState.pendingMemory || ariaState.memoryBusy) return;
+
+  if (ariaState.memoryStorageConfigured === false) {
+    setState(
+      "error",
+      "Stockage BRAIN non détecté.",
+      "Connecte le Blob privé aria-brain au projet aria-core dans Vercel, puis redéploie."
+    );
+    return;
+  }
 
   ariaState.memoryBusy = true;
   updateMemoryProposalCard();
@@ -1830,7 +1852,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "0.7.0").replace(/^v/, "")}`;
+    `v${String(config.version || "0.7.1").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.stream ? "Capture active" : "Aucune capture active";
