@@ -2,115 +2,141 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#071016" />
-  <meta
-    name="description"
-    content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle"
-  />
-  <title>ARIA — Prototype v0.2</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
+  <meta name="theme-color" content="#06141c" />
+  <title>ARIA — v0.3</title>
   <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
   <script src="config.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
-  <script defer src="sketch.js"></script>
 </head>
 <body>
   <main id="app-shell">
-    <header class="app-header">
+    <header class="topbar">
       <div>
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v0.2</span>
+          <span id="version-label" class="version-badge">v0.3</span>
         </div>
       </div>
-      <div class="indicators" aria-label="État de confidentialité et de connexion">
-        <span id="connection-indicator" class="indicator">Mode local</span>
-        <span id="privacy-indicator" class="indicator">Aucune capture active</span>
+      <div class="header-status">
+        <span id="connection-indicator" class="status-chip">Connexion requise</span>
+        <span id="privacy-indicator" class="status-chip">Aucune capture active</span>
       </div>
     </header>
 
-    <section id="visual-stage" aria-label="Visualisation de l’état d’ARIA">
-      <div id="visual-fallback" class="visual-fallback" aria-hidden="true"></div>
-    </section>
+    <section id="visual-stage" aria-label="Visualisation ARIA"></section>
 
-    <section class="status-panel" aria-live="polite" aria-atomic="true">
+    <section class="status-panel" aria-live="polite">
       <p id="status-label">ARIA est prête.</p>
-      <p id="detail-label">La conversation reste enregistrée uniquement dans ce navigateur.</p>
+      <p id="detail-label">Connecte-toi au moteur privé pour commencer.</p>
     </section>
 
-    <section class="conversation-panel" aria-label="Conversation avec ARIA">
-      <div class="conversation-toolbar">
+    <section class="connection-panel" aria-labelledby="connection-title">
+      <div>
+        <p class="section-kicker">MOTEUR PRIVÉ</p>
+        <h2 id="connection-title">ARIA Core</h2>
+        <p id="connection-detail">
+          Le code d’accès reste uniquement dans cette session de navigateur.
+        </p>
+      </div>
+      <button id="connect-button" type="button">Se connecter</button>
+    </section>
+
+    <section class="conversation-section" aria-labelledby="conversation-title">
+      <div class="section-heading">
         <div>
-          <h2>Conversation</h2>
-          <p id="conversation-count">0 message</p>
+          <h2 id="conversation-title">Conversation</h2>
+          <p id="conversation-count">0 message mémorisé</p>
         </div>
-        <button id="clear-button" type="button" class="button ghost small">Effacer</button>
+        <button id="clear-button" class="secondary compact" type="button">Effacer</button>
       </div>
 
-      <div id="conversation" class="conversation" aria-live="polite" aria-relevant="additions">
+      <div id="conversation" class="conversation" aria-live="polite">
         <article class="message assistant-message">
           <div class="message-meta">ARIA</div>
-          <p>Bonjour Anand. Je suis prête à recevoir une première instruction.</p>
+          <p>Bonjour Anand. Connecte-moi à ARIA Core, puis envoie-moi une première instruction.</p>
         </article>
       </div>
     </section>
 
-    <section class="command-panel" aria-label="Envoyer une instruction">
+    <section class="command-panel">
       <label for="command-input">Instruction</label>
       <div class="command-row">
         <textarea
           id="command-input"
           rows="2"
-          maxlength="4000"
-          placeholder="Exemple : que peux-tu faire dans cette version ?"
+          placeholder="Exemple : explique-moi la différence entre un paramètre Revit de type et d’occurrence"
           autocomplete="off"
         ></textarea>
-        <div class="command-actions">
-          <button
-            id="voice-button"
-            type="button"
-            class="button icon-button"
-            aria-label="Démarrer la dictée vocale"
-            title="Dictée vocale"
-          >
-            <span aria-hidden="true">🎙</span>
-          </button>
-          <button id="send-button" type="button" class="button primary">Envoyer</button>
-        </div>
+        <button id="voice-button" class="icon-button" type="button" aria-label="Démarrer la dictée vocale" title="Dictée vocale">🎙</button>
+        <button id="send-button" type="button">Envoyer</button>
       </div>
-      <p class="input-help">Entrée pour envoyer · Maj + Entrée pour aller à la ligne</p>
+      <p class="hint">Entrée pour envoyer · Maj + Entrée pour aller à la ligne</p>
     </section>
 
-    <section class="actions" aria-label="Outils ARIA">
-      <button id="share-button" type="button" class="button">Partager mon écran</button>
-      <button id="stop-button" type="button" class="button danger" disabled>Arrêter la capture</button>
-      <button id="reset-button" type="button" class="button ghost">Réinitialiser l’état</button>
+    <section class="actions">
+      <button id="share-button" type="button">Partager mon écran</button>
+      <button id="stop-button" type="button" disabled>Arrêter la capture</button>
+      <button id="reset-button" type="button" class="secondary">Réinitialiser l’état</button>
     </section>
 
     <section class="preview-card" id="preview-card" hidden>
-      <div class="preview-header">
+      <div class="preview-heading">
         <h2>Aperçu local</h2>
         <span>Non enregistré</span>
       </div>
       <video id="screen-preview" autoplay muted playsinline></video>
       <p>
-        Cette version affiche le partage uniquement sur ton appareil. L’image n’est pas encore envoyée à un modèle d’IA.
-      </p>
-    </section>
-
-    <section class="notice-card" aria-label="Limites du prototype">
-      <strong>Version de transition</strong>
-      <p>
-        ARIA v0.2 dispose maintenant d’une conversation, d’une mémoire locale de session et de la dictée vocale. Le véritable moteur d’IA sera relié ensuite par un backend sécurisé.
+        Le partage reste affiché uniquement sur cet appareil. Cette version ne transmet pas encore l’image à ARIA.
       </p>
     </section>
 
     <footer>
-      ARIA v0.2 — validation humaine requise avant toute action métier.
+      ARIA v0.3 — moteur OpenAI relié par un backend privé Vercel. Validation humaine requise avant toute action métier.
     </footer>
   </main>
 
+  <dialog id="access-dialog" aria-labelledby="access-title">
+    <form id="access-form" method="dialog">
+      <div class="dialog-heading">
+        <div>
+          <p class="section-kicker">ACCÈS SÉCURISÉ</p>
+          <h2 id="access-title">Connexion à ARIA Core</h2>
+        </div>
+        <button id="dialog-close" class="dialog-close" type="button" aria-label="Fermer">×</button>
+      </div>
+
+      <p>
+        Saisis la valeur que tu as enregistrée dans Vercel sous
+        <code>ARIA_ACCESS_TOKEN</code>.
+      </p>
+
+      <label for="access-token">Code d’accès</label>
+      <div class="password-row">
+        <input
+          id="access-token"
+          type="password"
+          autocomplete="current-password"
+          spellcheck="false"
+          placeholder="Code d’accès ARIA"
+        />
+        <button id="toggle-token" class="secondary compact" type="button">Afficher</button>
+      </div>
+
+      <p class="dialog-note">
+        Le code n’est ni envoyé à GitHub ni sauvegardé durablement. Il disparaît à la fermeture de la session du navigateur.
+      </p>
+
+      <div class="dialog-actions">
+        <button id="cancel-access" class="secondary" type="button">Annuler</button>
+        <button type="submit">Se connecter</button>
+      </div>
+    </form>
+  </dialog>
+
   <noscript>JavaScript doit être activé pour utiliser ARIA.</noscript>
+  <script src="sketch.js"></script>
 </body>
 </html>

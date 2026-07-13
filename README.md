@@ -1,28 +1,36 @@
-# ARIA Web — v0.2.0
+# ARIA Web v0.3.0
 
-Interface publique de démonstration d’ARIA.
+Interface publique d’ARIA reliée à **ARIA Core** sur Vercel.
 
-## Nouveautés
+## Déploiement
 
-- conversation sous forme de messages ;
-- historique local dans le navigateur ;
-- dictée vocale avec gestion des erreurs ;
-- partage d’écran avec aperçu strictement local ;
-- mode local de démonstration ;
-- préparation d’un futur appel à un backend sécurisé.
-
-## Sécurité
-
-Ne jamais placer de clé API, mot de passe ou jeton secret dans `config.js`, `sketch.js` ou tout autre fichier de ce dépôt public.
-
-Le mode `remote` ne devra être activé qu’après création d’un backend HTTPS sécurisé. Le navigateur appellera ce backend, et le backend conservera les secrets côté serveur.
-
-## Publication
-
-Les cinq fichiers doivent se trouver directement à la racine du dépôt GitHub Pages :
+Téléverser à la racine du dépôt GitHub Pages :
 
 - `index.html`
 - `style.css`
-- `sketch.js`
 - `config.js`
-- `README.md`
+- `sketch.js`
+
+## Connexion
+
+Au premier démarrage, cliquer sur **Se connecter** puis saisir la valeur
+`ARIA_ACCESS_TOKEN` enregistrée dans Vercel.
+
+Le code est conservé dans `sessionStorage` uniquement :
+
+- il n’est jamais écrit dans GitHub ;
+- il n’est pas conservé dans l’historique de conversation ;
+- il disparaît à la fermeture de la session du navigateur.
+
+## Backend
+
+Endpoint configuré :
+
+`https://aria-core-kappa.vercel.app/api/chat`
+
+## Confidentialité actuelle
+
+- la conversation est mémorisée localement dans le navigateur ;
+- les messages sont envoyés à ARIA Core puis à l’API OpenAI ;
+- le partage d’écran reste local et n’est pas encore analysé ;
+- aucune clé OpenAI n’est présente dans le dépôt public.

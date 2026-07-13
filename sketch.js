@@ -1,23 +1,25 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "0.2.0",
-  mode: "local",
-  apiUrl: "",
-  requestTimeoutMs: 30000,
+  version: "0.3.0",
+  mode: "remote",
+  apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
+  requestTimeoutMs: 45000,
   maxHistoryMessages: 20,
-  localStorageKey: "aria.web.conversation.v0.2"
+  localStorageKey: "aria.web.conversation.v0.3",
+  sessionTokenKey: "aria.web.access-token.session.v0.3"
 };
 
 const ariaState = {
   mode: "idle",
   message: "ARIA est prête.",
-  detail: "La conversation reste enregistrée uniquement dans ce navigateur.",
+  detail: "Connecte-toi au moteur privé pour commencer.",
   stream: null,
   recognition: null,
   isListening: false,
   isBusy: false,
-  history: []
+  history: [],
+  accessToken: ""
 };
 
 const stateVisuals = {
@@ -34,12 +36,10 @@ let domReady = false;
 
 function setup() {
   const stage = document.getElementById("visual-stage");
-  if (!stage) {
-    return;
-  }
+  if (!stage) return;
 
   const maxWidth = Math.min(420, Math.max(260, window.innerWidth - 36));
-  const canvas = createCanvas(maxWidth, Math.round(maxWidth * 0.79));
+  const canvas = createCanvas(maxWidth, Math.round(maxWidth * 0.72));
   canvas.parent("visual-stage");
   pixelDensity(Math.min(window.devicePixelRatio || 1, 2));
   noFill();
@@ -82,59 +82,51 @@ function drawCore() {
 }
 
 function windowResized() {
-  if (typeof resizeCanvas !== "function") {
-    return;
-  }
+  if (typeof resizeCanvas !== "function") return;
   const maxWidth = Math.min(420, Math.max(260, window.innerWidth - 36));
-  resizeCanvas(maxWidth, Math.round(maxWidth * 0.79));
+  resizeCanvas(maxWidth, Math.round(maxWidth * 0.72));
 }
 
 function initializeInterface() {
-  if (domReady) {
-    return;
-  }
+  if (domReady) return;
   domReady = true;
 
-  const input = getElement("command-input");
-  const sendButton = getElement("send-button");
-  const voiceButton = getElement("voice-button");
-  const shareButton = getElement("share-button");
-  const stopButton = getElement("stop-button");
-  const resetButton = getElement("reset-button");
-  const clearButton = getElement("clear-button");
-
-  sendButton.addEventListener("click", handleCommand);
-  input.addEventListener("keydown", (event) => {
+  getElement("send-button").addEventListener("click", handleCommand);
+  getElement("command-input").addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       handleCommand();
     }
   });
-  voiceButton.addEventListener("click", toggleVoiceRecognition);
-  shareButton.addEventListener("click", startScreenShare);
-  stopButton.addEventListener("click", () => stopScreenShare(true));
-  resetButton.addEventListener("click", resetAriaState);
-  clearButton.addEventListener("click", clearConversation);
 
+  getElement("voice-button").addEventListener("click", toggleVoiceRecognition);
+  getElement("share-button").addEventListener("click", startScreenShare);
+  getElement("stop-button").addEventListener("click", () => stopScreenShare(true));
+  getElement("reset-button").addEventListener("click", resetAriaState);
+  getElement("clear-button").addEventListener("click", clearConversation);
+  getElement("connect-button").addEventListener("click", handleConnectionButton);
+
+  getElement("access-form").addEventListener("submit", saveAccessToken);
+  getElement("dialog-close").addEventListener("click", closeAccessDialog);
+  getElement("cancel-access").addEventListener("click", closeAccessDialog);
+  getElement("toggle-token").addEventListener("click", toggleTokenVisibility);
+
+  loadAccessToken();
   loadHistory();
   initializeVoiceRecognition();
   updateInterface();
   updateConnectionIndicator();
-  input.focus();
+  getElement("command-input").focus();
 }
 
 function getElement(id) {
   const element = document.getElementById(id);
-  if (!element) {
-    throw new Error(`Élément d'interface introuvable : #${id}`);
-  }
+  if (!element) throw new Error(`Élément d'interface introuvable : #${id}`);
   return element;
 }
 
 async function handleCommand() {
-  if (ariaState.isBusy) {
-    return;
-  }
+  if (ariaState.isBusy) return;
 
   const input = getElement("command-input");
   const command = input.value.trim();
@@ -145,72 +137,87 @@ async function handleCommand() {
     return;
   }
 
+  if (!ariaState.accessToken) {
+    setState("idle", "Connexion requise.", "Saisis ton code d’accès ARIA Core.");
+    openAccessDialog();
+    return;
+  }
+
   input.value = "";
   addMessage("user", command, true);
   setBusy(true);
-  setState("thinking", "ARIA réfléchit…", "Analyse de la demande en cours.");
+  setState("thinking", "ARIA réfléchit…", "La demande est transmise à ARIA Core.");
   const typingId = addTypingMessage();
 
   try {
-    const response = await askAria(command);
+    const answer = await requestRemoteAria();
     removeMessageElement(typingId);
-    addMessage("assistant", response, true);
-    setState("idle", "Réponse terminée.", getModeDetail());
+    addMessage("assistant", answer, true);
+    setState("idle", "Réponse terminée.", "Le moteur privé ARIA Core est connecté.");
   } catch (error) {
     console.error("ARIA request failed:", error);
     removeMessageElement(typingId);
-    addMessage(
-      "error",
-      "Je n’ai pas pu traiter la demande. La connexion au moteur ARIA a échoué.",
-      false
-    );
-    setState("error", "Erreur de traitement.", getReadableError(error));
+
+    if (error.status === 401) {
+      clearAccessToken();
+      addMessage("error", "Le code d’accès ARIA est invalide ou a été modifié.", false);
+      setState("error", "Connexion refusée.", "Reconnecte-toi avec la valeur ARIA_ACCESS_TOKEN de Vercel.");
+      openAccessDialog();
+    } else {
+      addMessage("error", getReadableError(error), false);
+      setState("error", "Erreur de traitement.", getReadableError(error));
+    }
   } finally {
     setBusy(false);
     input.focus();
   }
 }
 
-async function askAria(command) {
-  if (config.mode === "remote" && config.apiUrl) {
-    return requestRemoteAria(command);
-  }
-
-  await delay(650 + Math.min(command.length * 7, 900));
-  return buildLocalResponse(command);
-}
-
-async function requestRemoteAria(command) {
+async function requestRemoteAria() {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(
     () => controller.abort(),
-    Number(config.requestTimeoutMs) || 30000
+    Number(config.requestTimeoutMs) || 45000
   );
+
+  const messages = ariaState.history
+    .filter((message) => message.role === "user" || message.role === "assistant")
+    .slice(-(Number(config.maxHistoryMessages) || 20))
+    .map(({ role, content }) => ({ role, content }));
 
   try {
     const response = await fetch(config.apiUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${ariaState.accessToken}`
+      },
       body: JSON.stringify({
-        message: command,
-        history: ariaState.history.slice(-(Number(config.maxHistoryMessages) || 20)),
+        messages,
         client: {
           name: "ARIA-web",
-          version: config.version || "0.2.0"
+          version: config.version || "0.3.0"
         }
       }),
       signal: controller.signal
     });
 
+    const data = await response.json().catch(() => ({}));
+
     if (!response.ok) {
-      throw new Error(`Le serveur ARIA a répondu avec le statut ${response.status}.`);
+      const error = new Error(
+        typeof data.error === "string" && data.error.trim()
+          ? data.error
+          : `ARIA Core a répondu avec le statut ${response.status}.`
+      );
+      error.status = response.status;
+      error.requestId = data.requestId || null;
+      throw error;
     }
 
-    const data = await response.json();
     const answer = typeof data.answer === "string" ? data.answer.trim() : "";
-
     if (!answer) {
-      throw new Error("Le serveur ARIA n’a renvoyé aucune réponse exploitable.");
+      throw new Error("ARIA Core n’a renvoyé aucune réponse exploitable.");
     }
 
     return answer;
@@ -219,68 +226,96 @@ async function requestRemoteAria(command) {
   }
 }
 
-function buildLocalResponse(command) {
-  const normalized = normalizeText(command);
-
-  if (matchesAny(normalized, ["bonjour", "bonsoir", "salut", "hello", "coucou"])) {
-    return "Bonjour Anand. L’interface conversationnelle fonctionne. Je suis encore en mode local, mais nous pouvons déjà tester la saisie, la mémoire de session et la dictée vocale.";
-  }
-
-  if (matchesAny(normalized, ["qui es tu", "presente toi", "ton nom", "que signifie aria"])) {
-    return "Je suis ARIA : Assistante de Raisonnement par l’Intelligence Artificielle. Cette version prépare l’interface, la conversation et les contrôles de confidentialité avant la connexion à mon véritable moteur de raisonnement.";
-  }
-
-  if (matchesAny(normalized, ["que peux tu faire", "tes fonctions", "aide", "help", "capacites"])) {
-    return [
-      "Dans cette version, je peux :",
-      "• recevoir et conserver localement une conversation ;",
-      "• accepter une instruction écrite ou dictée ;",
-      "• afficher un partage d’écran local avec arrêt immédiat ;",
-      "• préparer les requêtes pour un futur backend sécurisé.",
-      "Je ne peux pas encore analyser réellement un document, une image ou ton écran sans ce backend."
-    ].join("\n");
-  }
-
-  if (matchesAny(normalized, ["partage", "ecran", "fenetre", "capture"])) {
-    if (ariaState.stream) {
-      return "Je vois qu’un partage est actif dans l’interface. Pour l’instant, son aperçu reste strictement local et je ne reçois pas encore les images pour les analyser.";
+function handleConnectionButton() {
+  if (ariaState.accessToken) {
+    const confirmed = window.confirm(
+      "Déconnecter ARIA Core pour cette session de navigateur ?"
+    );
+    if (confirmed) {
+      clearAccessToken();
+      setState("idle", "ARIA est déconnectée.", "Le code d’accès de session a été supprimé.");
     }
-    return "Clique sur « Partager mon écran », puis choisis une fenêtre. Le navigateur te demandera toujours une autorisation explicite. Dans cette version, l’aperçu reste local et n’est pas analysé.";
+    return;
   }
 
-  if (matchesAny(normalized, ["memoire", "souviens", "historique", "conversation"])) {
-    return "Je conserve l’historique de cette version dans le stockage local de ton navigateur. Il ne quitte pas ton appareil. Le bouton « Effacer » supprime cette conversation locale.";
-  }
-
-  if (matchesAny(normalized, ["revit", "dynamo", "autocad", "sharepoint", "powerapps", "excel", "bim"])) {
-    return "J’ai identifié une demande liée à ton environnement BIM et numérique. Le classement de l’intention fonctionne, mais le moteur métier et les connecteurs ne sont pas encore reliés à cette interface publique.";
-  }
-
-  if (matchesAny(normalized, ["version", "mode local", "connecte", "connexion", "api"])) {
-    return `Cette interface utilise ARIA-web ${config.version || "v0.2"} en mode local. Aucune clé secrète n’est stockée dans le dépôt public. La prochaine étape consiste à connecter un backend privé et sécurisé.`;
-  }
-
-  return [
-    `J’ai bien reçu : « ${command} »`,
-    "La chaîne de conversation fonctionne correctement. Cependant, je suis encore en mode local : je peux reconnaître quelques intentions, mais je ne dispose pas encore d’un modèle d’IA connecté pour produire une analyse complète."
-  ].join("\n\n");
+  openAccessDialog();
 }
 
-function normalizeText(value) {
-  return String(value)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s'-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+function openAccessDialog() {
+  const dialog = getElement("access-dialog");
+  const tokenInput = getElement("access-token");
+  tokenInput.value = "";
+
+  if (typeof dialog.showModal === "function") {
+    dialog.showModal();
+    window.setTimeout(() => tokenInput.focus(), 30);
+  } else {
+    const token = window.prompt("Saisis le code ARIA_ACCESS_TOKEN :");
+    if (token && token.trim()) {
+      setAccessToken(token.trim());
+      setState("idle", "ARIA Core est connecté.", "Le code est conservé uniquement pour cette session.");
+    }
+  }
 }
 
-function matchesAny(value, terms, requireAll = false) {
-  if (requireAll) {
-    return terms.every((term) => value.includes(term));
+function closeAccessDialog() {
+  const dialog = getElement("access-dialog");
+  if (dialog.open) dialog.close();
+  getElement("access-token").value = "";
+  getElement("access-token").type = "password";
+  getElement("toggle-token").textContent = "Afficher";
+}
+
+function saveAccessToken(event) {
+  event.preventDefault();
+  const token = getElement("access-token").value.trim();
+
+  if (token.length < 12) {
+    setState("error", "Code d’accès trop court.", "Vérifie la valeur ARIA_ACCESS_TOKEN enregistrée dans Vercel.");
+    return;
   }
-  return terms.some((term) => value.includes(term));
+
+  setAccessToken(token);
+  closeAccessDialog();
+  setState("idle", "ARIA Core est connecté.", "Envoie une instruction pour vérifier la connexion au modèle.");
+  getElement("command-input").focus();
+}
+
+function setAccessToken(token) {
+  ariaState.accessToken = token;
+  try {
+    sessionStorage.setItem(config.sessionTokenKey, token);
+  } catch (error) {
+    console.warn("Session storage unavailable:", error);
+  }
+  updateConnectionIndicator();
+}
+
+function loadAccessToken() {
+  try {
+    ariaState.accessToken = sessionStorage.getItem(config.sessionTokenKey) || "";
+  } catch (error) {
+    console.warn("Unable to restore access token:", error);
+    ariaState.accessToken = "";
+  }
+}
+
+function clearAccessToken() {
+  ariaState.accessToken = "";
+  try {
+    sessionStorage.removeItem(config.sessionTokenKey);
+  } catch (error) {
+    console.warn("Unable to clear access token:", error);
+  }
+  updateConnectionIndicator();
+}
+
+function toggleTokenVisibility() {
+  const input = getElement("access-token");
+  const button = getElement("toggle-token");
+  const isPassword = input.type === "password";
+  input.type = isPassword ? "text" : "password";
+  button.textContent = isPassword ? "Masquer" : "Afficher";
 }
 
 function initializeVoiceRecognition() {
@@ -290,7 +325,6 @@ function initializeVoiceRecognition() {
   if (!Recognition) {
     voiceButton.disabled = true;
     voiceButton.title = "La dictée vocale n’est pas disponible dans ce navigateur.";
-    voiceButton.setAttribute("aria-label", "Dictée vocale indisponible");
     return;
   }
 
@@ -314,13 +348,13 @@ function initializeVoiceRecognition() {
   };
 
   recognition.onerror = (event) => {
-    const details = getVoiceErrorMessage(event.error);
-    setState("error", "La dictée vocale s’est interrompue.", details);
+    setState("error", "La dictée vocale s’est interrompue.", getVoiceErrorMessage(event.error));
   };
 
   recognition.onend = () => {
     ariaState.isListening = false;
     updateVoiceButton();
+
     if (ariaState.mode === "listening") {
       const hasText = getElement("command-input").value.trim().length > 0;
       setState(
@@ -335,16 +369,11 @@ function initializeVoiceRecognition() {
 }
 
 function toggleVoiceRecognition() {
-  if (!ariaState.recognition) {
-    return;
-  }
+  if (!ariaState.recognition) return;
 
   try {
-    if (ariaState.isListening) {
-      ariaState.recognition.stop();
-    } else {
-      ariaState.recognition.start();
-    }
+    if (ariaState.isListening) ariaState.recognition.stop();
+    else ariaState.recognition.start();
   } catch (error) {
     console.error("Voice recognition error:", error);
     setState("error", "Impossible de démarrer la dictée.", getReadableError(error));
@@ -352,34 +381,30 @@ function toggleVoiceRecognition() {
 }
 
 function updateVoiceButton() {
-  const voiceButton = getElement("voice-button");
-  voiceButton.classList.toggle("listening", ariaState.isListening);
-  voiceButton.setAttribute(
+  const button = getElement("voice-button");
+  button.classList.toggle("listening", ariaState.isListening);
+  button.setAttribute(
     "aria-label",
     ariaState.isListening ? "Arrêter la dictée vocale" : "Démarrer la dictée vocale"
   );
-  voiceButton.title = ariaState.isListening ? "Arrêter la dictée" : "Dictée vocale";
 }
 
 function getVoiceErrorMessage(code) {
   const messages = {
     "not-allowed": "Autorise l’accès au microphone dans les réglages du navigateur.",
-    "service-not-allowed": "Le service de reconnaissance vocale est bloqué par le navigateur ou l’organisation.",
+    "service-not-allowed": "Le service vocal est bloqué par le navigateur ou l’organisation.",
     "no-speech": "Aucune parole n’a été détectée.",
     "audio-capture": "Aucun microphone utilisable n’a été trouvé.",
-    network: "Le service de dictée vocale n’est pas joignable pour le moment.",
-    aborted: "La dictée a été arrêtée."
+    "network": "Le service de dictée vocale n’est pas joignable.",
+    "aborted": "La dictée a été arrêtée."
   };
+
   return messages[code] || `Erreur de dictée : ${code || "inconnue"}.`;
 }
 
 async function startScreenShare() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-    setState(
-      "error",
-      "Le partage d’écran n’est pas disponible.",
-      "Utilise un navigateur récent et une page HTTPS."
-    );
+    setState("error", "Le partage d’écran n’est pas disponible.", "Utilise un navigateur récent et une page HTTPS.");
     return;
   }
 
@@ -401,13 +426,9 @@ async function startScreenShare() {
     getElement("preview-card").hidden = false;
     getElement("share-button").disabled = true;
     getElement("stop-button").disabled = false;
-    setState(
-      "observing",
-      "Fenêtre partagée.",
-      "L’aperçu reste local et n’est ni enregistré ni analysé dans cette version."
-    );
+    setState("observing", "Fenêtre partagée.", "L’aperçu reste local et n’est pas envoyé à ARIA.");
   } catch (error) {
-    if (error && error.name === "NotAllowedError") {
+    if (error?.name === "NotAllowedError") {
       setState("idle", "Partage annulé.", "ARIA n’a reçu aucun accès à l’écran.");
       return;
     }
@@ -439,9 +460,7 @@ function stopScreenShare(updateStatus = true) {
 }
 
 function resetAriaState() {
-  if (ariaState.isListening && ariaState.recognition) {
-    ariaState.recognition.stop();
-  }
+  if (ariaState.isListening && ariaState.recognition) ariaState.recognition.stop();
   stopScreenShare(false);
   getElement("command-input").value = "";
   setState("idle", "ARIA est prête.", getModeDetail());
@@ -450,13 +469,10 @@ function resetAriaState() {
 
 function addMessage(role, content, persist) {
   const cleanContent = String(content || "").trim();
-  if (!cleanContent) {
-    return null;
-  }
+  if (!cleanContent) return null;
 
-  const id = createId();
   const message = {
-    id,
+    id: createId(),
     role,
     content: cleanContent,
     timestamp: new Date().toISOString()
@@ -470,12 +486,11 @@ function addMessage(role, content, persist) {
 
   renderMessage(message);
   updateConversationCount();
-  return id;
+  return message.id;
 }
 
 function addTypingMessage() {
   const id = createId();
-  const conversation = getElement("conversation");
   const article = document.createElement("article");
   article.id = id;
   article.className = "message assistant-message typing-message";
@@ -488,13 +503,12 @@ function addTypingMessage() {
   paragraph.textContent = "Réflexion";
 
   article.append(meta, paragraph);
-  conversation.append(article);
+  getElement("conversation").append(article);
   scrollConversationToBottom();
   return id;
 }
 
 function renderMessage(message) {
-  const conversation = getElement("conversation");
   const article = document.createElement("article");
   article.id = message.id;
   article.className = `message ${getMessageClass(message.role)}`;
@@ -507,42 +521,32 @@ function renderMessage(message) {
   paragraph.textContent = message.content;
 
   article.append(meta, paragraph);
-  conversation.append(article);
+  getElement("conversation").append(article);
   scrollConversationToBottom();
 }
 
 function getMessageClass(role) {
-  if (role === "user") {
-    return "user-message";
-  }
-  if (role === "error") {
-    return "error-message";
-  }
+  if (role === "user") return "user-message";
+  if (role === "error") return "error-message";
   return "assistant-message";
 }
 
 function removeMessageElement(id) {
-  const element = document.getElementById(id);
-  if (element) {
-    element.remove();
-  }
+  document.getElementById(id)?.remove();
 }
 
 function clearConversation() {
-  const confirmed = window.confirm("Effacer toute la conversation enregistrée dans ce navigateur ?");
-  if (!confirmed) {
-    return;
-  }
+  if (!window.confirm("Effacer toute la conversation enregistrée dans ce navigateur ?")) return;
 
   ariaState.history = [];
+
   try {
     localStorage.removeItem(config.localStorageKey);
   } catch (error) {
     console.warn("Unable to clear local history:", error);
   }
 
-  const conversation = getElement("conversation");
-  conversation.replaceChildren();
+  getElement("conversation").replaceChildren();
   addMessage("assistant", "Conversation effacée. Nous repartons sur une base propre.", false);
   updateConversationCount();
   setState("idle", "Conversation effacée.", getModeDetail());
@@ -559,15 +563,13 @@ function loadHistory() {
     }
 
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      throw new Error("Le format de l’historique local est invalide.");
-    }
+    if (!Array.isArray(parsed)) throw new Error("Historique local invalide.");
 
     const validHistory = parsed
       .filter(isValidStoredMessage)
       .slice(-(Number(config.maxHistoryMessages) || 20));
 
-    if (validHistory.length === 0) {
+    if (!validHistory.length) {
       updateConversationCount();
       return;
     }
@@ -580,9 +582,7 @@ function loadHistory() {
     console.warn("Unable to restore local history:", error);
     try {
       localStorage.removeItem(config.localStorageKey);
-    } catch (storageError) {
-      console.warn("Unable to reset invalid local history:", storageError);
-    }
+    } catch {}
     updateConversationCount();
   }
 }
@@ -590,10 +590,10 @@ function loadHistory() {
 function isValidStoredMessage(message) {
   return Boolean(
     message &&
-      typeof message.id === "string" &&
-      (message.role === "user" || message.role === "assistant") &&
-      typeof message.content === "string" &&
-      message.content.trim()
+    typeof message.id === "string" &&
+    (message.role === "user" || message.role === "assistant") &&
+    typeof message.content === "string" &&
+    message.content.trim()
   );
 }
 
@@ -602,11 +602,7 @@ function saveHistory() {
     localStorage.setItem(config.localStorageKey, JSON.stringify(ariaState.history));
   } catch (error) {
     console.warn("Unable to save local history:", error);
-    setState(
-      "error",
-      "La conversation ne peut pas être mémorisée.",
-      "Le stockage local est peut-être bloqué par le navigateur."
-    );
+    setState("error", "La conversation ne peut pas être mémorisée.", "Le stockage local est peut-être bloqué.");
   }
 }
 
@@ -619,7 +615,8 @@ function trimHistory() {
 
 function updateConversationCount() {
   const count = ariaState.history.length;
-  getElement("conversation-count").textContent = `${count} message${count > 1 ? "s" : ""} mémorisé${count > 1 ? "s" : ""}`;
+  getElement("conversation-count").textContent =
+    `${count} message${count > 1 ? "s" : ""} mémorisé${count > 1 ? "s" : ""}`;
 }
 
 function scrollConversationToBottom() {
@@ -634,6 +631,7 @@ function setBusy(isBusy) {
   getElement("send-button").disabled = isBusy;
   getElement("voice-button").disabled = isBusy || !ariaState.recognition;
   getElement("command-input").disabled = isBusy;
+  getElement("connect-button").disabled = isBusy;
 }
 
 function setState(mode, message, detail) {
@@ -644,44 +642,46 @@ function setState(mode, message, detail) {
 }
 
 function updateInterface() {
-  if (!domReady) {
-    return;
-  }
+  if (!domReady) return;
 
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
-  getElement("version-label").textContent = `v${String(config.version || "0.2.0").replace(/^v/, "")}`;
+  getElement("version-label").textContent =
+    `v${String(config.version || "0.3.0").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
-  if (ariaState.stream) {
-    privacy.textContent = "Capture active";
-    privacy.classList.add("active");
-  } else {
-    privacy.textContent = "Aucune capture active";
-    privacy.classList.remove("active");
-  }
+  privacy.textContent = ariaState.stream ? "Capture active" : "Aucune capture active";
+  privacy.classList.toggle("active", Boolean(ariaState.stream));
 }
 
 function updateConnectionIndicator() {
+  if (!domReady) return;
+
+  const connected = Boolean(ariaState.accessToken);
   const indicator = getElement("connection-indicator");
-  const isRemote = config.mode === "remote" && Boolean(config.apiUrl);
-  indicator.textContent = isRemote ? "Moteur connecté" : "Mode local";
-  indicator.classList.toggle("remote", isRemote);
+  const button = getElement("connect-button");
+  const detail = getElement("connection-detail");
+
+  indicator.textContent = connected ? "Moteur connecté" : "Connexion requise";
+  indicator.classList.toggle("connected", connected);
+  button.textContent = connected ? "Se déconnecter" : "Se connecter";
+  detail.textContent = connected
+    ? "Le code d’accès est actif uniquement pour cette session de navigateur."
+    : "Le code d’accès reste uniquement dans cette session de navigateur.";
 }
 
 function getModeDetail() {
-  return config.mode === "remote" && config.apiUrl
-    ? "Le moteur ARIA est connecté par un backend sécurisé."
-    : "Mode local actif : aucune donnée n’est transmise à un moteur d’IA.";
+  return ariaState.accessToken
+    ? "Le moteur ARIA est relié par un backend privé."
+    : "Connecte-toi à ARIA Core pour utiliser le modèle d’intelligence artificielle.";
 }
 
 function getReadableError(error) {
-  if (error && error.name === "AbortError") {
-    return "Le délai d’attente du serveur ARIA est dépassé.";
+  if (error?.name === "AbortError") {
+    return "Le délai d’attente d’ARIA Core est dépassé.";
   }
-  if (error && typeof error.message === "string" && error.message.trim()) {
-    return error.message;
-  }
+
+  if (error?.message) return error.message;
   return "Une erreur inconnue s’est produite.";
 }
 
@@ -689,11 +689,8 @@ function createId() {
   if (window.crypto && typeof window.crypto.randomUUID === "function") {
     return window.crypto.randomUUID();
   }
-  return `aria-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
 
-function delay(milliseconds) {
-  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+  return `aria-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -703,11 +700,7 @@ document.addEventListener("DOMContentLoaded", () => {
     console.error("ARIA initialization failed:", error);
     const status = document.getElementById("status-label");
     const detail = document.getElementById("detail-label");
-    if (status) {
-      status.textContent = "ARIA n’a pas pu démarrer correctement.";
-    }
-    if (detail) {
-      detail.textContent = getReadableError(error);
-    }
+    if (status) status.textContent = "ARIA n’a pas pu démarrer correctement.";
+    if (detail) detail.textContent = getReadableError(error);
   }
 });
