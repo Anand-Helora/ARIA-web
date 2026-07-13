@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v0.3</title>
+  <title>ARIA — v0.5</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
   <script src="config.js"></script>
@@ -17,7 +17,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v0.3</span>
+          <span id="version-label" class="version-badge">v0.5</span>
         </div>
       </div>
       <div class="header-status">
@@ -44,20 +44,47 @@
       <button id="connect-button" type="button">Se connecter</button>
     </section>
 
-    <section class="conversation-section" aria-labelledby="conversation-title">
+    <section id="conversation-section" class="conversation-section" aria-labelledby="conversation-title">
       <div class="section-heading">
         <div>
           <h2 id="conversation-title">Conversation</h2>
           <p id="conversation-count">0 message mémorisé</p>
         </div>
-        <button id="clear-button" class="secondary compact" type="button">Effacer</button>
+        <div class="conversation-actions">
+          <button
+            id="toggle-conversation-button"
+            class="secondary compact"
+            type="button"
+            aria-expanded="true"
+            aria-controls="conversation-body"
+          >
+            Masquer la discussion
+          </button>
+          <button id="clear-button" class="secondary compact" type="button">Effacer</button>
+        </div>
       </div>
 
-      <div id="conversation" class="conversation" aria-live="polite">
+      <div id="conversation-body">
+        <div id="conversation" class="conversation" aria-live="polite">
         <article class="message assistant-message">
           <div class="message-meta">ARIA</div>
           <p>Bonjour Anand. Connecte-moi à ARIA Core, puis envoie-moi une première instruction.</p>
         </article>
+        </div>
+      </div>
+
+      <div id="conversation-hidden-card" class="conversation-hidden-card" hidden>
+        <div class="hidden-conversation-icon" aria-hidden="true">◉</div>
+        <div>
+          <strong>Discussion masquée</strong>
+          <p>
+            Les échanges continuent d’être mémorisés localement. Tu peux réafficher
+            le texte à tout moment.
+          </p>
+        </div>
+        <button id="show-conversation-button" class="secondary compact" type="button">
+          Afficher
+        </button>
       </div>
     </section>
 
@@ -93,8 +120,20 @@
       </p>
     </section>
 
-    <footer>
-      ARIA v0.3 — moteur OpenAI relié par un backend privé Vercel. Validation humaine requise avant toute action métier.
+    <footer class="app-footer">
+      <div class="creator-signature" aria-label="Créé par Reckem Anand">
+        <span class="creator-monogram" aria-hidden="true">RA</span>
+        <div class="creator-copy">
+          <strong>Créé par Reckem Anand</strong>
+          <span>Conception et développement du projet ARIA</span>
+        </div>
+      </div>
+      <p class="footer-technical">
+        ARIA Web v0.5 · BRAIN privé actif · affichage conversationnel modulable
+      </p>
+      <p class="footer-safety">
+        Validation humaine requise avant toute action métier.
+      </p>
     </footer>
   </main>
 

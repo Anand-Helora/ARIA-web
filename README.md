@@ -1,4 +1,4 @@
-# ARIA Web v0.3.0
+# ARIA Web v0.5.0
 
 Interface publique d’ARIA reliée à **ARIA Core** sur Vercel.
 
@@ -34,3 +34,24 @@ Endpoint configuré :
 - les messages sont envoyés à ARIA Core puis à l’API OpenAI ;
 - le partage d’écran reste local et n’est pas encore analysé ;
 - aucune clé OpenAI n’est présente dans le dépôt public.
+
+
+## Signature
+
+Le pied de page affiche discrètement :
+
+`Créé par Reckem Anand`
+
+La signature est intégrée dans l’interface publique et reste responsive sur téléphone,
+tablette et ordinateur.
+
+
+## Affichage de la discussion
+
+L’utilisateur peut masquer ou réafficher la conversation textuelle avec le bouton
+`Masquer la discussion`.
+
+- l’historique n’est pas supprimé ;
+- les nouveaux échanges continuent d’être mémorisés ;
+- le choix d’affichage est conservé localement sur l’appareil ;
+- cette fonction prépare l’interface à un futur mode vocal uniquement.

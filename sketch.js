@@ -1,13 +1,14 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "0.3.0",
+  version: "0.5.0",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   requestTimeoutMs: 45000,
   maxHistoryMessages: 20,
   localStorageKey: "aria.web.conversation.v0.3",
-  sessionTokenKey: "aria.web.access-token.session.v0.3"
+  sessionTokenKey: "aria.web.access-token.session.v0.3",
+  conversationVisibilityKey: "aria.web.conversation-visible.v0.5"
 };
 
 const ariaState = {
@@ -19,7 +20,8 @@ const ariaState = {
   isListening: false,
   isBusy: false,
   history: [],
-  accessToken: ""
+  accessToken: "",
+  isConversationVisible: true
 };
 
 const stateVisuals = {
@@ -104,6 +106,8 @@ function initializeInterface() {
   getElement("stop-button").addEventListener("click", () => stopScreenShare(true));
   getElement("reset-button").addEventListener("click", resetAriaState);
   getElement("clear-button").addEventListener("click", clearConversation);
+  getElement("toggle-conversation-button").addEventListener("click", toggleConversationVisibility);
+  getElement("show-conversation-button").addEventListener("click", () => setConversationVisibility(true));
   getElement("connect-button").addEventListener("click", handleConnectionButton);
 
   getElement("access-form").addEventListener("submit", saveAccessToken);
@@ -112,6 +116,7 @@ function initializeInterface() {
   getElement("toggle-token").addEventListener("click", toggleTokenVisibility);
 
   loadAccessToken();
+  loadConversationVisibility();
   loadHistory();
   initializeVoiceRecognition();
   updateInterface();
@@ -196,7 +201,7 @@ async function requestRemoteAria() {
         messages,
         client: {
           name: "ARIA-web",
-          version: config.version || "0.3.0"
+          version: config.version || "0.5.0"
         }
       }),
       signal: controller.signal
@@ -316,6 +321,64 @@ function toggleTokenVisibility() {
   const isPassword = input.type === "password";
   input.type = isPassword ? "text" : "password";
   button.textContent = isPassword ? "Masquer" : "Afficher";
+}
+
+
+function loadConversationVisibility() {
+  try {
+    const storedValue = localStorage.getItem(config.conversationVisibilityKey);
+
+    if (storedValue === null) {
+      ariaState.isConversationVisible = true;
+      return;
+    }
+
+    ariaState.isConversationVisible = storedValue === "true";
+  } catch (error) {
+    console.warn("Unable to restore conversation visibility:", error);
+    ariaState.isConversationVisible = true;
+  }
+}
+
+function toggleConversationVisibility() {
+  setConversationVisibility(!ariaState.isConversationVisible);
+}
+
+function setConversationVisibility(isVisible) {
+  ariaState.isConversationVisible = Boolean(isVisible);
+
+  try {
+    localStorage.setItem(
+      config.conversationVisibilityKey,
+      String(ariaState.isConversationVisible)
+    );
+  } catch (error) {
+    console.warn("Unable to save conversation visibility:", error);
+  }
+
+  updateConversationVisibility();
+}
+
+function updateConversationVisibility() {
+  if (!domReady) return;
+
+  const isVisible = ariaState.isConversationVisible;
+  const conversationBody = getElement("conversation-body");
+  const hiddenCard = getElement("conversation-hidden-card");
+  const toggleButton = getElement("toggle-conversation-button");
+
+  conversationBody.hidden = !isVisible;
+  hiddenCard.hidden = isVisible;
+
+  toggleButton.textContent = isVisible
+    ? "Masquer la discussion"
+    : "Afficher la discussion";
+
+  toggleButton.setAttribute("aria-expanded", String(isVisible));
+
+  if (isVisible) {
+    scrollConversationToBottom();
+  }
 }
 
 function initializeVoiceRecognition() {
@@ -647,11 +710,12 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "0.3.0").replace(/^v/, "")}`;
+    `v${String(config.version || "0.5.0").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.stream ? "Capture active" : "Aucune capture active";
   privacy.classList.toggle("active", Boolean(ariaState.stream));
+  updateConversationVisibility();
 }
 
 function updateConnectionIndicator() {
