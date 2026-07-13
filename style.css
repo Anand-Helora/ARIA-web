@@ -183,6 +183,18 @@ h2 {
   white-space: nowrap;
 }
 
+#voice-output-indicator:not(.connected) {
+  color: var(--muted);
+  border-color: var(--border);
+  background: rgba(7, 25, 34, 0.72);
+}
+
+#voice-output-indicator.connected {
+  color: var(--success);
+  border-color: rgba(124, 224, 190, 0.42);
+  background: rgba(38, 116, 92, 0.18);
+}
+
 .status-chip.active {
   color: var(--warning);
   border-color: rgba(239, 193, 119, 0.35);

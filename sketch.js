@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "0.8.0",
+  version: "0.8.1",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -328,7 +328,7 @@ async function requestRemoteAria(image = null) {
           : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "0.8.0"
+          version: config.version || "0.8.1"
         }
       }),
       signal: controller.signal
@@ -1222,14 +1222,20 @@ function toggleVoiceOutput() {
 
   if (!ariaState.autoSpeak) {
     cancelSpeech(false);
-    setVoiceStatus(
-      "Réponses audio désactivées.",
-      "Le microphone reste disponible pour parler à ARIA."
+    setState(
+      "idle",
+      "Mode vocal désactivé.",
+      "ARIA continue de fonctionner en mode texte."
     );
   } else {
     setVoiceStatus(
-      "Réponses audio activées.",
-      "Les prochaines réponses seront lues à voix haute."
+      "Mode vocal activé.",
+      "Appuie sur le bouton central pour parler à ARIA."
+    );
+    setState(
+      "idle",
+      "Mode vocal activé.",
+      "Les prochaines réponses pourront être lues à voix haute."
     );
   }
 
@@ -1240,22 +1246,29 @@ function updateVoiceOutputIndicator() {
   if (!domReady) return;
 
   const indicator = getElement("voice-output-indicator");
+  const voiceConsole = getElement("voice-console");
   const enabled = ariaState.autoSpeak;
 
-  indicator.textContent = enabled
-    ? "Voix activée"
-    : "Voix désactivée";
+  // Le libellé reste volontairement stable.
+  // La couleur et aria-pressed indiquent l'état actif ou inactif.
+  indicator.textContent = "Mode vocal";
   indicator.classList.toggle("connected", enabled);
   indicator.setAttribute("aria-pressed", String(enabled));
   indicator.setAttribute(
     "aria-label",
     enabled
-      ? "Désactiver les réponses vocales"
-      : "Activer les réponses vocales"
+      ? "Désactiver le mode vocal"
+      : "Activer le mode vocal"
   );
   indicator.title = enabled
-    ? "Cliquer pour désactiver les réponses audio"
-    : "Cliquer pour activer les réponses audio";
+    ? "Mode vocal activé — cliquer pour le désactiver"
+    : "Mode vocal désactivé — cliquer pour l’activer";
+
+  // La grande carte vocale ne doit exister visuellement
+  // que lorsque le mode vocal est activé et ARIA connectée.
+  voiceConsole.hidden =
+    !enabled ||
+    !ariaState.accessToken;
 }
 
 function initializeSpeechSynthesis() {
@@ -1723,7 +1736,9 @@ function updateVoiceInterface() {
   const transcript = getElement("voice-live-transcript");
   const stopButton = getElement("stop-speech-button");
 
-  consolePanel.hidden = !connected;
+  consolePanel.hidden =
+    !connected ||
+    !ariaState.autoSpeak;
   stopButton.hidden = !ariaState.isSpeaking;
 
   mainButton.classList.toggle("listening", ariaState.isListening);
@@ -2343,7 +2358,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "0.8.0").replace(/^v/, "")}`;
+    `v${String(config.version || "0.8.1").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingImage

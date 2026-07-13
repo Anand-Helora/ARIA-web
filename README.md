@@ -1,4 +1,4 @@
-# ARIA Web v0.8.0 — Vision contrôlée et voix activable
+# ARIA Web v0.8.1 — Mode vocal activable
 
 ## Réponses vocales
 
@@ -43,3 +43,29 @@ Avant l’envoi, ARIA Web affiche :
 
 ARIA Web convertit localement les images en JPEG et limite leur résolution et
 leur taille avant envoi à ARIA Core.
+
+
+## Comportement du bouton Mode vocal
+
+Le bouton de l’en-tête affiche toujours :
+
+`Mode vocal`
+
+Son état est indiqué par :
+
+- couleur neutre : mode vocal désactivé ;
+- couleur verte : mode vocal activé.
+
+Lorsque le mode vocal est désactivé :
+
+- la grande carte `Mode vocal` disparaît ;
+- les réponses restent textuelles ;
+- ARIA continue de fonctionner normalement.
+
+Lorsque le mode vocal est activé :
+
+- la carte réapparaît ;
+- le grand bouton central permet de parler à ARIA ;
+- les réponses audio sont autorisées.
+
+Le choix reste mémorisé localement sur l’appareil.
