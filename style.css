@@ -197,6 +197,7 @@ h2 {
 .status-panel,
 .connection-panel,
 .voice-console,
+.memory-proposal-card,
 .command-panel,
 .preview-card {
   border: 1px solid var(--border);
@@ -420,6 +421,130 @@ h2 {
   color: #718991;
   font-size: 0.76rem;
   line-height: 1.45;
+}
+
+.memory-proposal-card {
+  margin-top: 18px;
+  padding: 22px 24px;
+  border-color: rgba(239, 193, 119, 0.38);
+  background:
+    linear-gradient(145deg, rgba(61, 48, 24, 0.34), rgba(18, 35, 44, 0.88));
+}
+
+.memory-proposal-card[hidden] {
+  display: none;
+}
+
+.memory-proposal-heading,
+.memory-proposal-actions,
+.brain-memory-item-heading {
+  display: flex;
+  align-items: center;
+}
+
+.memory-proposal-heading {
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.memory-proposal-heading h2 {
+  margin-top: 5px;
+}
+
+.memory-category {
+  display: inline-flex;
+  width: fit-content;
+  padding: 0.35rem 0.58rem;
+  border: 1px solid rgba(239, 193, 119, 0.34);
+  border-radius: 999px;
+  color: var(--warning);
+  background: rgba(100, 67, 22, 0.18);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.memory-proposal-card h3 {
+  margin: 18px 0 8px;
+  font-size: 1.1rem;
+}
+
+.memory-proposal-summary {
+  margin-bottom: 8px;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.memory-proposal-reason,
+.memory-voice-hint {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.memory-proposal-actions {
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.memory-voice-hint {
+  margin: 12px 0 0;
+}
+
+.brain-dialog-content {
+  padding: 24px;
+}
+
+.brain-memory-list {
+  display: grid;
+  max-height: 52vh;
+  gap: 12px;
+  margin-top: 18px;
+  overflow-y: auto;
+}
+
+.brain-memory-item {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(5, 21, 29, 0.62);
+}
+
+.brain-memory-item-heading {
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.brain-memory-item h3 {
+  margin: 8px 0 0;
+  font-size: 1rem;
+}
+
+.brain-memory-item > p {
+  margin: 12px 0 8px;
+  color: #d8e5e8;
+  line-height: 1.5;
+}
+
+.brain-memory-item time {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.brain-empty-state {
+  margin: 0;
+  padding: 22px;
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.danger-button {
+  color: #ffcaca !important;
+  border-color: rgba(243, 154, 154, 0.24) !important;
 }
 
 .conversation-section {
@@ -873,6 +998,22 @@ code {
 
   .voice-settings-grid {
     grid-template-columns: 1fr;
+  }
+
+  .memory-proposal-heading,
+  .brain-memory-item-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .memory-proposal-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .memory-proposal-actions button,
+  .brain-memory-item-heading button {
+    width: 100%;
   }
 }
 

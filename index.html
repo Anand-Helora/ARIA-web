@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v0.6.1</title>
+  <title>ARIA — v0.7</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
   <script src="config.js"></script>
@@ -17,7 +17,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v0.6.1</span>
+          <span id="version-label" class="version-badge">v0.7</span>
         </div>
       </div>
       <div class="header-status">
@@ -29,6 +29,16 @@
           title="Gérer la connexion à ARIA Core"
         >
           Connexion requise
+        </button>
+        <button
+          id="brain-indicator"
+          class="status-chip status-chip-button"
+          type="button"
+          aria-label="Consulter la mémoire BRAIN"
+          title="Consulter la mémoire BRAIN"
+          disabled
+        >
+          BRAIN
         </button>
         <span id="privacy-indicator" class="status-chip">Aucune capture active</span>
       </div>
@@ -99,6 +109,29 @@
         La voix principale d’ARIA est générée par intelligence artificielle via OpenAI.
         Une voix locale du navigateur prend automatiquement le relais en cas d’indisponibilité.
         Aucun fichier audio n’est conservé par ARIA Web.
+      </p>
+    </section>
+
+    <section id="memory-proposal-card" class="memory-proposal-card" hidden aria-live="polite">
+      <div class="memory-proposal-heading">
+        <div>
+          <p class="section-kicker">PROPOSITION BRAIN</p>
+          <h2>ARIA propose de mémoriser</h2>
+        </div>
+        <span id="memory-proposal-category" class="memory-category">Mémoire</span>
+      </div>
+
+      <h3 id="memory-proposal-title"></h3>
+      <p id="memory-proposal-summary" class="memory-proposal-summary"></p>
+      <p id="memory-proposal-reason" class="memory-proposal-reason"></p>
+
+      <div class="memory-proposal-actions">
+        <button id="approve-memory-button" type="button">Mémoriser</button>
+        <button id="dismiss-memory-button" class="secondary" type="button">Ignorer</button>
+      </div>
+
+      <p class="memory-voice-hint">
+        En mode vocal, tu peux dire « mémorise » ou « ignore ».
       </p>
     </section>
 
@@ -203,7 +236,7 @@
         </div>
       </div>
       <p class="footer-technical">
-        ARIA Web v0.6.1 · voix OpenAI Coral · BRAIN privé actif
+        ARIA Web v0.7 · mémoire assistée · voix OpenAI Coral
       </p>
       <p class="footer-safety">
         Validation humaine requise avant toute action métier.
@@ -247,6 +280,29 @@
         <button type="submit">Se connecter</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="brain-dialog" aria-labelledby="brain-dialog-title">
+    <div class="brain-dialog-content">
+      <div class="dialog-heading">
+        <div>
+          <p class="section-kicker">MÉMOIRE PRIVÉE</p>
+          <h2 id="brain-dialog-title">BRAIN validé</h2>
+        </div>
+        <button id="brain-dialog-close" class="dialog-close" type="button" aria-label="Fermer">×</button>
+      </div>
+
+      <p id="brain-dialog-status" class="dialog-note">
+        Chargement des mémoires…
+      </p>
+
+      <div id="brain-memory-list" class="brain-memory-list"></div>
+
+      <div class="dialog-actions">
+        <button id="refresh-brain-button" class="secondary" type="button">Actualiser</button>
+        <button id="brain-dialog-done" type="button">Fermer</button>
+      </div>
+    </div>
   </dialog>
 
   <noscript>JavaScript doit être activé pour utiliser ARIA.</noscript>

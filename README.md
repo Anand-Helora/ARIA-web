@@ -1,108 +1,40 @@
-# ARIA Web v0.6.1
+# ARIA Web v0.7.0 — Mémoire assistée
 
-Interface publique d’ARIA reliée à **ARIA Core** sur Vercel.
+Cette version permet à ARIA de proposer une information durable à mémoriser.
 
-## Déploiement
+## Fonctionnement
 
-Téléverser à la racine du dépôt GitHub Pages :
+Après une réponse, ARIA peut afficher une carte :
 
-- `index.html`
-- `style.css`
-- `config.js`
-- `sketch.js`
+- titre de la mémoire ;
+- synthèse proposée ;
+- catégorie ;
+- raison de la proposition ;
+- boutons `Mémoriser` et `Ignorer`.
 
-## Connexion
+Aucune information n’est enregistrée sans validation explicite.
 
-Au premier démarrage, cliquer sur **Se connecter** puis saisir la valeur
-`ARIA_ACCESS_TOKEN` enregistrée dans Vercel.
+## Commandes vocales
 
-Le code est conservé dans `sessionStorage` uniquement :
+Lorsqu’une proposition est affichée, Anand peut dire :
 
-- il n’est jamais écrit dans GitHub ;
-- il n’est pas conservé dans l’historique de conversation ;
-- il disparaît à la fermeture de la session du navigateur.
+- `mémorise`
+- `retiens-le`
+- `ajoute à BRAIN`
+- `ignore`
+- `ne retiens pas`
 
-## Backend
+## Consultation
 
-Endpoint configuré :
+Le bouton compact `BRAIN` dans l’en-tête permet de :
 
-`https://aria-core-kappa.vercel.app/api/chat`
+- consulter les mémoires validées ;
+- actualiser la liste ;
+- supprimer une mémoire.
 
-## Confidentialité actuelle
+## Stockage
 
-- la conversation est mémorisée localement dans le navigateur ;
-- les messages sont envoyés à ARIA Core puis à l’API OpenAI ;
-- le partage d’écran reste local et n’est pas encore analysé ;
-- aucune clé OpenAI n’est présente dans le dépôt public.
+Les mémoires sont stockées dans un Vercel Blob privé par ARIA Core.
 
-
-## Signature
-
-Le pied de page affiche discrètement :
-
-`Créé par Reckem Anand`
-
-La signature est intégrée dans l’interface publique et reste responsive sur téléphone,
-tablette et ordinateur.
-
-
-## Affichage de la discussion
-
-L’utilisateur peut masquer ou réafficher la conversation textuelle avec le bouton
-`Masquer la discussion`.
-
-- l’historique n’est pas supprimé ;
-- les nouveaux échanges continuent d’être mémorisés ;
-- le choix d’affichage est conservé localement sur l’appareil ;
-- cette fonction prépare l’interface à un futur mode vocal uniquement.
-
-
-## Interface épurée après connexion
-
-Lorsque `ARIA_ACCESS_TOKEN` est actif dans la session :
-
-- le grand panneau d’état est masqué ;
-- le panneau `ARIA Core` est masqué ;
-- le bouton compact `Moteur connecté` reste visible dans l’en-tête ;
-- ce bouton permet de se déconnecter ;
-- les deux grands panneaux réapparaissent automatiquement après déconnexion.
-
-Cette adaptation prépare l’interface au futur fonctionnement vocal uniquement.
-
-
-## Mode vocal v0.6
-
-Après connexion à ARIA Core, l’interface affiche un grand bouton central :
-
-1. appuyer pour démarrer l’écoute ;
-2. parler naturellement ;
-3. appuyer de nouveau pour envoyer immédiatement, ou marquer une pause ;
-4. ARIA répond par texte et lit automatiquement sa réponse.
-
-Fonctions incluses :
-
-- interruption immédiate de la lecture vocale ;
-- état visuel `écoute`, `réflexion` et `réponse` ;
-- sélection d’une voix française disponible dans le navigateur ;
-- réglage de la vitesse ;
-- activation ou désactivation de la lecture automatique ;
-- clavier masqué par défaut, mais accessible ;
-- conversation masquée par défaut sur un nouvel appareil ;
-- aucune conservation de fichier audio par ARIA Web.
-
-La qualité et la disponibilité des voix dépendent du navigateur et du système d’exploitation.
-
-
-## Voix OpenAI Coral
-
-La lecture principale utilise désormais :
-
-- endpoint privé : `/api/speech`
-- modèle : `gpt-4o-mini-tts`
-- voix : `coral`
-- style : féminin, calme, naturel, chaleureux et professionnel
-
-La voix locale du navigateur reste disponible comme solution de secours.
-
-L'interface indique clairement que la voix principale est générée par
-intelligence artificielle.
+Le dépôt public ARIA Web ne contient aucun souvenir, aucune clé API et aucun
+identifiant de stockage.

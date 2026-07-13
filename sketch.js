@@ -1,12 +1,14 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "0.6.1",
+  version: "0.7.0",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
+  memoryApiUrl: "https://aria-core-kappa.vercel.app/api/memory",
   requestTimeoutMs: 45000,
   speechRequestTimeoutMs: 45000,
+  memoryRequestTimeoutMs: 30000,
   maxHistoryMessages: 20,
   localStorageKey: "aria.web.conversation.v0.3",
   sessionTokenKey: "aria.web.access-token.session.v0.3",
@@ -41,7 +43,10 @@ const ariaState = {
   speechRequestController: null,
   autoSpeak: true,
   speechRate: 1,
-  preferredVoiceName: "openai:coral"
+  preferredVoiceName: "openai:coral",
+  pendingMemory: null,
+  savedMemories: [],
+  memoryBusy: false
 };
 
 const stateVisuals = {
@@ -136,6 +141,12 @@ function initializeInterface() {
   getElement("show-conversation-button").addEventListener("click", () => setConversationVisibility(true));
   getElement("connect-button").addEventListener("click", handleConnectionButton);
   getElement("connection-indicator").addEventListener("click", handleConnectionButton);
+  getElement("brain-indicator").addEventListener("click", openBrainDialog);
+  getElement("approve-memory-button").addEventListener("click", approvePendingMemory);
+  getElement("dismiss-memory-button").addEventListener("click", dismissPendingMemory);
+  getElement("brain-dialog-close").addEventListener("click", closeBrainDialog);
+  getElement("brain-dialog-done").addEventListener("click", closeBrainDialog);
+  getElement("refresh-brain-button").addEventListener("click", loadBrainMemories);
 
   getElement("access-form").addEventListener("submit", saveAccessToken);
   getElement("dialog-close").addEventListener("click", closeAccessDialog);
@@ -188,10 +199,13 @@ async function handleCommand(options = {}) {
   let answerToSpeak = "";
 
   try {
-    const answer = await requestRemoteAria();
+    const result = await requestRemoteAria();
     removeMessageElement(typingId);
-    addMessage("assistant", answer, true);
-    answerToSpeak = answer;
+    addMessage("assistant", result.answer, true);
+    setPendingMemory(result.memoryProposal);
+    answerToSpeak = result.memoryProposal
+      ? `${result.answer} Cette information semble utile pour BRAIN. Dis mémorise ou ignore, ou utilise les boutons affichés.`
+      : result.answer;
     setState("idle", "Réponse terminée.", "Le moteur privé ARIA Core est connecté.");
   } catch (error) {
     console.error("ARIA request failed:", error);
@@ -241,7 +255,7 @@ async function requestRemoteAria() {
         messages,
         client: {
           name: "ARIA-web",
-          version: config.version || "0.6.1"
+          version: config.version || "0.7.0"
         }
       }),
       signal: controller.signal
@@ -265,7 +279,14 @@ async function requestRemoteAria() {
       throw new Error("ARIA Core n’a renvoyé aucune réponse exploitable.");
     }
 
-    return answer;
+    return {
+      answer,
+      memoryProposal:
+        data.memoryProposal &&
+        typeof data.memoryProposal === "object"
+          ? data.memoryProposal
+          : null
+    };
   } finally {
     window.clearTimeout(timeoutId);
   }
@@ -352,6 +373,9 @@ function clearAccessToken() {
     } catch {}
   }
   cancelSpeech(false);
+  ariaState.pendingMemory = null;
+  ariaState.savedMemories = [];
+  updateMemoryProposalCard();
   ariaState.accessToken = "";
   try {
     sessionStorage.removeItem(config.sessionTokenKey);
@@ -474,6 +498,348 @@ function updateTextInputVisibility() {
   );
 }
 
+
+function getMemoryCategoryLabel(category) {
+  const labels = {
+    preference: "Préférence",
+    project_decision: "Décision projet",
+    nomenclature: "Nomenclature",
+    workflow: "Méthode de travail",
+    tool_convention: "Convention outil",
+    professional_context: "Contexte professionnel"
+  };
+
+  return labels[category] || "Mémoire";
+}
+
+function setPendingMemory(proposal) {
+  ariaState.pendingMemory =
+    proposal && typeof proposal === "object"
+      ? {
+          category: String(proposal.category || ""),
+          title: String(proposal.title || "").trim(),
+          summary: String(proposal.summary || "").trim(),
+          reason: String(proposal.reason || "").trim(),
+          confidence: Number(proposal.confidence) || 0
+        }
+      : null;
+
+  updateMemoryProposalCard();
+}
+
+function updateMemoryProposalCard() {
+  if (!domReady) return;
+
+  const card = getElement("memory-proposal-card");
+  const proposal = ariaState.pendingMemory;
+
+  card.hidden = !proposal;
+
+  if (!proposal) return;
+
+  getElement("memory-proposal-category").textContent =
+    getMemoryCategoryLabel(proposal.category);
+  getElement("memory-proposal-title").textContent =
+    proposal.title;
+  getElement("memory-proposal-summary").textContent =
+    proposal.summary;
+  getElement("memory-proposal-reason").textContent =
+    proposal.reason
+      ? `Pourquoi : ${proposal.reason}`
+      : "";
+
+  getElement("approve-memory-button").disabled =
+    ariaState.memoryBusy;
+  getElement("dismiss-memory-button").disabled =
+    ariaState.memoryBusy;
+}
+
+function normalizeVoiceCommand(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function handlePendingMemoryVoiceCommand(transcript) {
+  if (!ariaState.pendingMemory) return false;
+
+  const command = normalizeVoiceCommand(transcript);
+
+  const approvePatterns = [
+    "memorise",
+    "memorise le",
+    "oui memorise",
+    "retiens",
+    "retiens le",
+    "enregistre",
+    "ajoute a brain",
+    "garde le"
+  ];
+
+  const dismissPatterns = [
+    "ignore",
+    "non ignore",
+    "ne memorise pas",
+    "ne retiens pas",
+    "oublie",
+    "laisse tomber"
+  ];
+
+  if (approvePatterns.some((pattern) => command.includes(pattern))) {
+    approvePendingMemory();
+    return true;
+  }
+
+  if (dismissPatterns.some((pattern) => command.includes(pattern))) {
+    dismissPendingMemory({ speakConfirmation: true });
+    return true;
+  }
+
+  return false;
+}
+
+async function memoryApiRequest(method, body = null, query = "") {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    Number(config.memoryRequestTimeoutMs) || 30000
+  );
+
+  try {
+    const response = await fetch(
+      `${config.memoryApiUrl}${query}`,
+      {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${ariaState.accessToken}`
+        },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal
+      }
+    );
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const error = new Error(
+        typeof data.error === "string" && data.error.trim()
+          ? data.error
+          : `La mémoire BRAIN a répondu avec le statut ${response.status}.`
+      );
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function approvePendingMemory() {
+  if (!ariaState.pendingMemory || ariaState.memoryBusy) return;
+
+  ariaState.memoryBusy = true;
+  updateMemoryProposalCard();
+  setVoiceStatus("Mémorisation…", "ARIA enregistre l’information validée dans BRAIN.");
+
+  try {
+    const result = await memoryApiRequest(
+      "POST",
+      { proposal: ariaState.pendingMemory }
+    );
+
+    const wasDuplicate = result.duplicate === true;
+    ariaState.pendingMemory = null;
+    updateMemoryProposalCard();
+
+    const confirmation = wasDuplicate
+      ? "Cette information était déjà mémorisée."
+      : "C’est mémorisé dans BRAIN.";
+
+    setState("idle", confirmation, "La mémoire privée a été mise à jour.");
+    setVoiceStatus(confirmation, "ARIA est prête à continuer.");
+    updateBrainIndicator();
+
+    if (ariaState.autoSpeak) {
+      speakText(confirmation);
+    }
+  } catch (error) {
+    console.error("Memory approval failed:", error);
+    setState("error", "La mémoire n’a pas été enregistrée.", getReadableError(error));
+    setVoiceStatus("Échec de la mémorisation.", getReadableError(error));
+    addMessage("error", getReadableError(error), false);
+  } finally {
+    ariaState.memoryBusy = false;
+    updateMemoryProposalCard();
+  }
+}
+
+function dismissPendingMemory(options = {}) {
+  if (!ariaState.pendingMemory) return;
+
+  ariaState.pendingMemory = null;
+  updateMemoryProposalCard();
+  setState("idle", "Proposition ignorée.", "Aucune mémoire n’a été enregistrée.");
+  setVoiceStatus("Proposition ignorée.", "ARIA est prête à continuer.");
+
+  if (options.speakConfirmation && ariaState.autoSpeak) {
+    speakText("D’accord, je ne mémorise pas cette information.");
+  }
+}
+
+function updateBrainIndicator() {
+  if (!domReady) return;
+
+  const indicator = getElement("brain-indicator");
+  const connected = Boolean(ariaState.accessToken);
+
+  indicator.disabled = !connected;
+  indicator.textContent = ariaState.savedMemories.length
+    ? `BRAIN · ${ariaState.savedMemories.length}`
+    : "BRAIN";
+}
+
+async function openBrainDialog() {
+  if (!ariaState.accessToken) {
+    openAccessDialog();
+    return;
+  }
+
+  const dialog = getElement("brain-dialog");
+
+  if (typeof dialog.showModal === "function") {
+    dialog.showModal();
+  }
+
+  await loadBrainMemories();
+}
+
+function closeBrainDialog() {
+  const dialog = getElement("brain-dialog");
+  if (dialog.open) dialog.close();
+}
+
+async function loadBrainMemories() {
+  const status = getElement("brain-dialog-status");
+  const listElement = getElement("brain-memory-list");
+
+  status.textContent = "Chargement des mémoires…";
+  listElement.replaceChildren();
+
+  try {
+    const data = await memoryApiRequest("GET");
+    ariaState.savedMemories = Array.isArray(data.memories)
+      ? data.memories
+      : [];
+
+    renderBrainMemories();
+
+    status.textContent = data.status?.storageConfigured
+      ? `${ariaState.savedMemories.length} mémoire${ariaState.savedMemories.length > 1 ? "s" : ""} validée${ariaState.savedMemories.length > 1 ? "s" : ""}.`
+      : "Le stockage BRAIN permanent n’est pas encore configuré.";
+
+    updateBrainIndicator();
+  } catch (error) {
+    console.error("Unable to load BRAIN memories:", error);
+    status.textContent = getReadableError(error);
+  }
+}
+
+function renderBrainMemories() {
+  const listElement = getElement("brain-memory-list");
+  listElement.replaceChildren();
+
+  if (!ariaState.savedMemories.length) {
+    const empty = document.createElement("p");
+    empty.className = "brain-empty-state";
+    empty.textContent = "Aucune mémoire dynamique n’a encore été validée.";
+    listElement.append(empty);
+    return;
+  }
+
+  for (const memory of ariaState.savedMemories) {
+    const article = document.createElement("article");
+    article.className = "brain-memory-item";
+
+    const header = document.createElement("div");
+    header.className = "brain-memory-item-heading";
+
+    const textGroup = document.createElement("div");
+
+    const category = document.createElement("span");
+    category.className = "memory-category";
+    category.textContent = getMemoryCategoryLabel(memory.category);
+
+    const title = document.createElement("h3");
+    title.textContent = memory.title;
+
+    textGroup.append(category, title);
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "secondary compact danger-button";
+    deleteButton.textContent = "Supprimer";
+    deleteButton.addEventListener(
+      "click",
+      () => deleteBrainMemory(memory)
+    );
+
+    header.append(textGroup, deleteButton);
+
+    const summary = document.createElement("p");
+    summary.textContent = memory.summary;
+
+    const date = document.createElement("time");
+    date.dateTime = memory.createdAt || "";
+    date.textContent = memory.createdAt
+      ? new Intl.DateTimeFormat("fr-BE", {
+          dateStyle: "medium",
+          timeStyle: "short"
+        }).format(new Date(memory.createdAt))
+      : "";
+
+    article.append(header, summary, date);
+    listElement.append(article);
+  }
+}
+
+async function deleteBrainMemory(memory) {
+  if (
+    !window.confirm(
+      `Supprimer définitivement la mémoire « ${memory.title} » ?`
+    )
+  ) {
+    return;
+  }
+
+  try {
+    await memoryApiRequest(
+      "DELETE",
+      null,
+      `?id=${encodeURIComponent(memory.id)}`
+    );
+
+    ariaState.savedMemories = ariaState.savedMemories.filter(
+      (item) => item.id !== memory.id
+    );
+
+    renderBrainMemories();
+    getElement("brain-dialog-status").textContent =
+      "Mémoire supprimée.";
+    updateBrainIndicator();
+  } catch (error) {
+    console.error("Memory deletion failed:", error);
+    getElement("brain-dialog-status").textContent =
+      getReadableError(error);
+  }
+}
+
 function initializeVoiceRecognition() {
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceButton = getElement("voice-button");
@@ -549,6 +915,12 @@ function initializeVoiceRecognition() {
       }
 
       if (transcript) {
+        if (handlePendingMemoryVoiceCommand(transcript)) {
+          getElement("command-input").value = "";
+          ariaState.voiceTranscript = "";
+          return;
+        }
+
         setVoiceStatus("Instruction reçue.", "ARIA prépare sa réponse.");
         window.setTimeout(() => handleCommand({ source: "voice" }), 80);
       } else {
@@ -1458,7 +1830,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "0.6.1").replace(/^v/, "")}`;
+    `v${String(config.version || "0.7.0").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.stream ? "Capture active" : "Aucune capture active";
@@ -1466,6 +1838,8 @@ function updateInterface() {
   updateConversationVisibility();
   updateTextInputVisibility();
   updateVoiceInterface();
+  updateMemoryProposalCard();
+  updateBrainIndicator();
 }
 
 function updateConnectionIndicator() {
@@ -1500,6 +1874,7 @@ function updateConnectionIndicator() {
   connectionPanel.hidden = connected;
   updateTextInputVisibility();
   updateVoiceInterface();
+  updateBrainIndicator();
 }
 
 function getModeDetail() {
