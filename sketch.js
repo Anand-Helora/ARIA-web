@@ -1,23 +1,28 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "0.8.2",
+  version: "0.9.0",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
   memoryApiUrl: "https://aria-core-kappa.vercel.app/api/memory",
-  requestTimeoutMs: 45000,
+  pdfApiUrl: "https://aria-core-kappa.vercel.app/api/pdf",
+  requestTimeoutMs: 180000,
   speechRequestTimeoutMs: 45000,
   memoryRequestTimeoutMs: 30000,
+  pdfRequestTimeoutMs: 30000,
+  pdfUploadTimeoutMs: 300000,
   maxHistoryMessages: 20,
   maxImageDimension: 1440,
   maxImageDataUrlChars: 2500000,
   imageJpegQuality: 0.78,
+  maxPdfBytes: 47185920,
   localStorageKey: "aria.web.conversation.v0.3",
   sessionTokenKey: "aria.web.access-token.session.v0.3",
   conversationVisibilityKey: "aria.web.conversation-visible.v0.6",
   textInputVisibilityKey: "aria.web.text-input-visible.v0.7.2",
   autoSpeakKey: "aria.web.voice-output-enabled.v0.8",
+  pdfSessionKey: "aria.web.pending-pdf.session.v0.9",
   speechRateKey: "aria.web.speech-rate.v0.6",
   speechVoiceKey: "aria.web.speech-voice.v0.6.1"
 };
@@ -49,6 +54,9 @@ const ariaState = {
   preferredVoiceName: "openai:coral",
   pendingImage: null,
   imageBusy: false,
+  pendingPdf: null,
+  pdfBusy: false,
+  pdfUploadProgress: 0,
   pendingMemory: null,
   savedMemories: [],
   memoryBusy: false,
@@ -142,12 +150,41 @@ function initializeInterface() {
   getElement("share-button").addEventListener("click", startScreenShare);
   getElement("stop-button").addEventListener("click", () => stopScreenShare(true));
   getElement("voice-output-indicator").addEventListener("click", toggleVoiceOutput);
-  getElement("add-image-button").addEventListener("click", () =>
-    getElement("image-file-input").click()
-  );
+  getElement("add-image-button").addEventListener("click", () => {
+    if (!ariaState.accessToken) {
+      setState(
+        "idle",
+        "Connexion requise.",
+        "Connecte ARIA Core avant d’ajouter une pièce jointe."
+      );
+      openAccessDialog();
+      return;
+    }
+    getElement("image-file-input").click();
+  });
   getElement("image-file-input").addEventListener(
     "change",
     handleImageFileSelection
+  );
+  getElement("add-pdf-button").addEventListener("click", () => {
+    if (!ariaState.accessToken) {
+      setState(
+        "idle",
+        "Connexion requise.",
+        "Connecte ARIA Core avant d’ajouter un PDF."
+      );
+      openAccessDialog();
+      return;
+    }
+    getElement("pdf-file-input").click();
+  });
+  getElement("pdf-file-input").addEventListener(
+    "change",
+    handlePdfFileSelection
+  );
+  getElement("remove-pdf-button").addEventListener(
+    "click",
+    () => discardPendingPdf(true)
   );
   getElement("capture-screen-button").addEventListener(
     "click",
@@ -185,6 +222,7 @@ function initializeInterface() {
   }
 
   loadVoiceSettings();
+  loadPendingPdfSession();
   loadHistory();
   initializeVoiceRecognition();
   initializeSpeechSynthesis();
@@ -205,19 +243,32 @@ async function handleCommand(options = {}) {
   const source = options.source === "voice" ? "voice" : "text";
   const input = getElement("command-input");
   const imageToSend = ariaState.pendingImage;
+  const pdfToSend = ariaState.pendingPdf;
+
+  if (imageToSend && pdfToSend) {
+    setState(
+      "error",
+      "Deux pièces jointes actives.",
+      "Retire l’image ou le PDF avant l’envoi."
+    );
+    return;
+  }
+
   const command =
     input.value.trim() ||
     (
-      imageToSend
-        ? "Analyse précisément l’image jointe. Décris ce qui est visible, relève les éléments importants et signale les détails incertains."
-        : ""
+      pdfToSend
+        ? "Analyse ce PDF. Résume son contenu, relève les informations importantes, signale les points incertains et propose les prochaines actions utiles."
+        : imageToSend
+          ? "Analyse précisément l’image jointe. Décris ce qui est visible, relève les éléments importants et signale les détails incertains."
+          : ""
     );
 
   if (!command) {
     setState(
       "error",
       "Instruction vide.",
-      "Écris, dicte ou joins une image avant de l’envoyer."
+      "Écris, dicte ou joins une image ou un PDF avant de l’envoyer."
     );
     if (ariaState.isTextInputVisible) input.focus();
     return;
@@ -232,9 +283,11 @@ async function handleCommand(options = {}) {
   input.value = "";
   ariaState.voiceTranscript = "";
 
-  const displayedCommand = imageToSend
-    ? `${command}\n\n📎 Image jointe : ${imageToSend.name}`
-    : command;
+  const displayedCommand = pdfToSend
+    ? `${command}\n\n📄 PDF actif : ${pdfToSend.name}`
+    : imageToSend
+      ? `${command}\n\n📎 Image jointe : ${imageToSend.name}`
+      : command;
 
   addMessage("user", displayedCommand, true);
 
@@ -248,7 +301,7 @@ async function handleCommand(options = {}) {
   let answerToSpeak = "";
 
   try {
-    const result = await requestRemoteAria(imageToSend);
+    const result = await requestRemoteAria(imageToSend, pdfToSend);
     removeMessageElement(typingId);
     addMessage("assistant", result.answer, true);
     ariaState.memoryStorageConfigured =
@@ -297,11 +350,11 @@ async function handleCommand(options = {}) {
   }
 }
 
-async function requestRemoteAria(image = null) {
+async function requestRemoteAria(image = null, pdf = null) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(
     () => controller.abort(),
-    Number(config.requestTimeoutMs) || 45000
+    Number(config.requestTimeoutMs) || 180000
   );
 
   const messages = ariaState.history
@@ -326,9 +379,17 @@ async function requestRemoteAria(image = null) {
               source: image.source
             }
           : null,
+        pdf: pdf
+          ? {
+              pathname: pdf.pathname,
+              name: pdf.name,
+              size: pdf.size,
+              detail: pdf.detail || "auto"
+            }
+          : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "0.8.2"
+          version: config.version || "0.9.0"
         }
       }),
       signal: controller.signal
@@ -1805,6 +1866,441 @@ function updateVoiceInterface() {
 }
 
 
+
+function savePendingPdfSession() {
+  try {
+    if (ariaState.pendingPdf) {
+      sessionStorage.setItem(
+        config.pdfSessionKey,
+        JSON.stringify(ariaState.pendingPdf)
+      );
+    } else {
+      sessionStorage.removeItem(
+        config.pdfSessionKey
+      );
+    }
+  } catch (error) {
+    console.warn(
+      "Impossible de mémoriser la session PDF.",
+      error
+    );
+  }
+}
+
+function loadPendingPdfSession() {
+  try {
+    const raw = sessionStorage.getItem(
+      config.pdfSessionKey
+    );
+
+    if (!raw) return;
+
+    const parsed = JSON.parse(raw);
+
+    if (
+      typeof parsed?.pathname === "string" &&
+      parsed.pathname.startsWith(
+        "aria-temp/pdfs/"
+      ) &&
+      typeof parsed?.name === "string" &&
+      Number.isFinite(Number(parsed?.size))
+    ) {
+      ariaState.pendingPdf = {
+        pathname: parsed.pathname,
+        name: parsed.name,
+        size: Number(parsed.size),
+        mimeType: "application/pdf",
+        detail: ["low", "auto", "high"].includes(
+          parsed.detail
+        )
+          ? parsed.detail
+          : "auto",
+        uploadedAt:
+          parsed.uploadedAt || null
+      };
+    }
+  } catch (error) {
+    console.warn(
+      "Session PDF invalide.",
+      error
+    );
+    try {
+      sessionStorage.removeItem(
+        config.pdfSessionKey
+      );
+    } catch {
+      // Aucun traitement supplémentaire.
+    }
+  }
+}
+
+async function readPdfSignature(file) {
+  const buffer = await file
+    .slice(0, 5)
+    .arrayBuffer();
+
+  return new TextDecoder("ascii").decode(
+    new Uint8Array(buffer)
+  );
+}
+
+async function requestPdfService(payload) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    Number(config.pdfRequestTimeoutMs) || 30000
+  );
+
+  try {
+    const response = await fetch(
+      config.pdfApiUrl,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization":
+            `Bearer ${ariaState.accessToken}`
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      }
+    );
+
+    const data = await response
+      .json()
+      .catch(() => ({}));
+
+    if (!response.ok) {
+      const error = new Error(
+        typeof data.error === "string" &&
+        data.error.trim()
+          ? data.error
+          : `Le service PDF a répondu avec le statut ${response.status}.`
+      );
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+function uploadPdfWithProgress(
+  file,
+  uploadUrl,
+  onProgress
+) {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+
+    request.open("PUT", uploadUrl, true);
+    request.timeout =
+      Number(config.pdfUploadTimeoutMs) ||
+      300000;
+    request.setRequestHeader(
+      "Content-Type",
+      "application/pdf"
+    );
+
+    request.upload.addEventListener(
+      "progress",
+      (event) => {
+        if (!event.lengthComputable) return;
+        const percent = Math.max(
+          0,
+          Math.min(
+            100,
+            Math.round(
+              (event.loaded / event.total) * 100
+            )
+          )
+        );
+        onProgress(percent);
+      }
+    );
+
+    request.addEventListener("load", () => {
+      if (
+        request.status >= 200 &&
+        request.status < 300
+      ) {
+        onProgress(100);
+        resolve();
+        return;
+      }
+
+      reject(
+        new Error(
+          `Le stockage privé a refusé l’upload (${request.status}).`
+        )
+      );
+    });
+
+    request.addEventListener("error", () => {
+      reject(
+        new Error(
+          "La connexion au stockage privé a échoué."
+        )
+      );
+    });
+
+    request.addEventListener("timeout", () => {
+      reject(
+        new Error(
+          "Le téléversement du PDF a dépassé le délai autorisé."
+        )
+      );
+    });
+
+    request.addEventListener("abort", () => {
+      reject(
+        new Error(
+          "Le téléversement du PDF a été interrompu."
+        )
+      );
+    });
+
+    request.send(file);
+  });
+}
+
+async function handlePdfFileSelection(event) {
+  const input = event.currentTarget;
+  const [file] = input.files || [];
+  input.value = "";
+
+  if (!file) return;
+
+  const maxBytes =
+    Number(config.maxPdfBytes) ||
+    45 * 1024 * 1024;
+
+  if (
+    !file.name.toLowerCase().endsWith(".pdf") ||
+    file.size <= 0 ||
+    file.size > maxBytes
+  ) {
+    setState(
+      "error",
+      "PDF non autorisé.",
+      file.size > maxBytes
+        ? "Le PDF doit faire moins de 45 Mo."
+        : "Choisis un fichier PDF valide."
+    );
+    return;
+  }
+
+  ariaState.pdfBusy = true;
+  ariaState.pdfUploadProgress = 0;
+  updatePdfAttachmentInterface();
+
+  let preparedUpload = null;
+
+  try {
+    const signature =
+      await readPdfSignature(file);
+
+    if (signature !== "%PDF-") {
+      throw new Error(
+        "Le contenu du fichier ne correspond pas à un PDF valide."
+      );
+    }
+
+    if (ariaState.pendingPdf) {
+      await discardPendingPdf(false);
+    }
+
+    if (ariaState.pendingImage) {
+      clearPendingImage(false);
+    }
+
+    setState(
+      "thinking",
+      "Préparation du PDF…",
+      "ARIA crée une autorisation temporaire de téléversement."
+    );
+
+    const data = await requestPdfService({
+      action: "prepare_upload",
+      name: file.name,
+      size: file.size,
+      mimeType:
+        file.type || "application/pdf"
+    });
+
+    preparedUpload = data.upload;
+
+    if (
+      !preparedUpload?.uploadUrl ||
+      !preparedUpload?.pathname
+    ) {
+      throw new Error(
+        "Le service PDF n’a pas renvoyé d’autorisation exploitable."
+      );
+    }
+
+    setState(
+      "thinking",
+      "Téléversement sécurisé : 0 %",
+      "Le PDF va directement vers le stockage privé Vercel."
+    );
+
+    await uploadPdfWithProgress(
+      file,
+      preparedUpload.uploadUrl,
+      (percent) => {
+        ariaState.pdfUploadProgress =
+          percent;
+        setState(
+          "thinking",
+          `Téléversement sécurisé : ${percent} %`,
+          "Le fichier ne transite pas par ARIA Web."
+        );
+      }
+    );
+
+    ariaState.pendingPdf = {
+      pathname: preparedUpload.pathname,
+      name:
+        preparedUpload.name ||
+        file.name,
+      size: Number(
+        preparedUpload.size ||
+        file.size
+      ),
+      mimeType: "application/pdf",
+      detail: "auto",
+      uploadedAt:
+        new Date().toISOString()
+    };
+
+    savePendingPdfSession();
+
+    setState(
+      "idle",
+      "PDF prêt.",
+      "Il restera actif pour les prochaines questions jusqu’à son retrait."
+    );
+  } catch (error) {
+    console.error(
+      "PDF upload failed:",
+      error
+    );
+
+    if (preparedUpload?.pathname) {
+      await requestPdfService({
+        action: "delete",
+        pathname:
+          preparedUpload.pathname
+      }).catch(() => {});
+    }
+
+    setState(
+      "error",
+      "Impossible d’ajouter le PDF.",
+      getReadableError(error)
+    );
+  } finally {
+    ariaState.pdfBusy = false;
+    ariaState.pdfUploadProgress = 0;
+    updatePdfAttachmentInterface();
+  }
+}
+
+function clearPendingPdfLocal() {
+  ariaState.pendingPdf = null;
+  ariaState.pdfUploadProgress = 0;
+  savePendingPdfSession();
+  updatePdfAttachmentInterface();
+}
+
+async function discardPendingPdf(
+  updateStatus = true
+) {
+  const pdf = ariaState.pendingPdf;
+
+  clearPendingPdfLocal();
+
+  if (pdf?.pathname && ariaState.accessToken) {
+    try {
+      await requestPdfService({
+        action: "delete",
+        pathname: pdf.pathname
+      });
+    } catch (error) {
+      console.warn(
+        "Suppression immédiate du PDF impossible.",
+        error
+      );
+    }
+  }
+
+  if (updateStatus) {
+    setState(
+      "idle",
+      "PDF retiré.",
+      "Le document temporaire a été supprimé du stockage privé."
+    );
+  }
+}
+
+function updatePdfAttachmentInterface() {
+  if (!domReady) return;
+
+  const pdf = ariaState.pendingPdf;
+  const card = getElement(
+    "pdf-attachment-card"
+  );
+  const addButton = getElement(
+    "add-pdf-button"
+  );
+  const removeButton = getElement(
+    "remove-pdf-button"
+  );
+
+  card.hidden = !pdf;
+
+  addButton.disabled =
+    ariaState.isBusy ||
+    ariaState.pdfBusy ||
+    ariaState.imageBusy ||
+    !ariaState.accessToken;
+
+  removeButton.disabled =
+    ariaState.isBusy ||
+    ariaState.pdfBusy;
+
+  if (!pdf) {
+    getElement(
+      "pdf-attachment-name"
+    ).textContent = "Document PDF";
+    getElement(
+      "pdf-attachment-details"
+    ).textContent = "";
+    getElement(
+      "pdf-attachment-status"
+    ).textContent =
+      ariaState.pdfBusy
+        ? `Téléversement : ${ariaState.pdfUploadProgress} %`
+        : "Stockage privé temporaire";
+    return;
+  }
+
+  getElement(
+    "pdf-attachment-name"
+  ).textContent = pdf.name;
+  getElement(
+    "pdf-attachment-details"
+  ).textContent =
+    `${formatFileSize(pdf.size)} · analyse texte et pages`;
+  getElement(
+    "pdf-attachment-status"
+  ).textContent =
+    "Actif pour les prochaines questions · suppression au retrait";
+}
+
 function approximateDataUrlBytes(dataUrl) {
   const base64 = String(dataUrl || "").split(",")[1] || "";
   const padding = (base64.match(/=+$/) || [""])[0].length;
@@ -1958,6 +2454,10 @@ async function handleImageFileSelection(event) {
     return;
   }
 
+  if (ariaState.pendingPdf) {
+    await discardPendingPdf(false);
+  }
+
   ariaState.imageBusy = true;
   updateImageAttachmentInterface();
   setState(
@@ -2026,6 +2526,10 @@ async function captureSharedScreen() {
     return;
   }
 
+  if (ariaState.pendingPdf) {
+    await discardPendingPdf(false);
+  }
+
   ariaState.imageBusy = true;
   updateImageAttachmentInterface();
   setState(
@@ -2072,6 +2576,7 @@ async function captureSharedScreen() {
 function setPendingImage(image) {
   ariaState.pendingImage = image || null;
   updateImageAttachmentInterface();
+  updatePdfAttachmentInterface();
 }
 
 function clearPendingImage(updateStatus = true) {
@@ -2196,12 +2701,13 @@ function stopScreenShare(updateStatus = true) {
   }
 }
 
-function resetAriaState() {
+async function resetAriaState() {
   if (ariaState.isListening && ariaState.recognition) ariaState.recognition.stop();
   cancelSpeech(false);
   ariaState.voiceTranscript = "";
   stopScreenShare(false);
   clearPendingImage(false);
+  await discardPendingPdf(false);
   getElement("command-input").value = "";
   setState("idle", "ARIA est prête.", getModeDetail());
   getElement("command-input").focus();
@@ -2375,6 +2881,7 @@ function setBusy(isBusy) {
   getElement("connection-indicator").disabled = isBusy;
   updateVoiceInterface();
   updateImageAttachmentInterface();
+  updatePdfAttachmentInterface();
 }
 
 function setState(mode, message, detail) {
@@ -2390,23 +2897,30 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "0.8.2").replace(/^v/, "")}`;
+    `v${String(config.version || "0.9.0").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
-  privacy.textContent = ariaState.pendingImage
-    ? "Image prête à envoyer"
-    : ariaState.stream
-      ? "Écran partagé localement"
-      : "Aucune image active";
+  privacy.textContent = ariaState.pendingPdf
+    ? "PDF privé actif"
+    : ariaState.pendingImage
+      ? "Image prête à envoyer"
+      : ariaState.stream
+        ? "Écran partagé localement"
+        : "Aucune pièce jointe active";
   privacy.classList.toggle(
     "active",
-    Boolean(ariaState.stream || ariaState.pendingImage)
+    Boolean(
+      ariaState.stream ||
+      ariaState.pendingImage ||
+      ariaState.pendingPdf
+    )
   );
   updateConversationVisibility();
   updateTextInputVisibility();
   updateVoiceInterface();
   updateVoiceOutputIndicator();
   updateImageAttachmentInterface();
+  updatePdfAttachmentInterface();
   updateMemoryProposalCard();
   updateBrainIndicator();
 }

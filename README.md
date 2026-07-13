@@ -1,83 +1,49 @@
-# ARIA Web v0.8.2 — Correctif masquage du mode vocal
+# ARIA Web v0.9.0 — PDF privé temporaire
 
-## Réponses vocales
+## Ajouter un PDF
 
-Les réponses audio sont désormais désactivées par défaut.
+Le bouton `Ajouter un PDF` accepte un seul document de 45 Mo maximum.
 
-Le bouton de l’en-tête permet de basculer entre :
+ARIA vérifie localement :
 
-- `Voix désactivée`
-- `Voix activée`
+- l’extension `.pdf` ;
+- la taille ;
+- la signature `%PDF-`.
 
-Le microphone reste utilisable pour dicter ou parler à ARIA, même lorsque la
-lecture audio est désactivée.
+Le navigateur demande ensuite une URL d’upload temporaire à ARIA Core et
+envoie directement le fichier vers Vercel Blob privé.
 
-La préférence est mémorisée localement sur l’appareil.
+## Session documentaire
 
-## Analyse d’image
+Le PDF reste actif pour plusieurs questions successives.
 
-Deux méthodes sont disponibles :
+La carte affiche :
 
-1. `Ajouter une image` : JPEG, PNG ou WebP ;
-2. `Joindre l’écran partagé` : capture ponctuelle de l’aperçu local.
-
-Avant l’envoi, ARIA Web affiche :
-
-- une miniature ;
 - le nom ;
-- la provenance ;
-- les dimensions ;
-- la taille compressée ;
-- un bouton `Retirer`.
+- la taille ;
+- le statut privé ;
+- le bouton `Retirer et supprimer`.
+
+Le document est supprimé lors :
+
+- du retrait ;
+- du remplacement par un autre PDF ;
+- de l’ajout d’une image ;
+- de la réinitialisation d’ARIA.
+
+Les fichiers abandonnés sont nettoyés après 24 heures lors d’un nouvel upload.
 
 ## Confidentialité
 
-- aucune capture continue ;
-- l’écran partagé reste local ;
-- seule la capture explicitement jointe est envoyée ;
-- l’image est envoyée uniquement avec le prochain message ;
-- l’image n’est pas mémorisée dans BRAIN ;
-- après l’envoi, la pièce jointe est retirée de l’interface.
+- aucune URL privée durable dans GitHub ;
+- aucun PDF dans localStorage ;
+- seule la référence temporaire est conservée dans sessionStorage ;
+- aucun contenu du PDF n’est ajouté automatiquement à BRAIN ;
+- les réponses OpenAI sont demandées avec `store: false`.
 
-## Compression
+## Limites initiales
 
-ARIA Web convertit localement les images en JPEG et limite leur résolution et
-leur taille avant envoi à ARIA Core.
-
-
-## Comportement du bouton Mode vocal
-
-Le bouton de l’en-tête affiche toujours :
-
-`Mode vocal`
-
-Son état est indiqué par :
-
-- couleur neutre : mode vocal désactivé ;
-- couleur verte : mode vocal activé.
-
-Lorsque le mode vocal est désactivé :
-
-- la grande carte `Mode vocal` disparaît ;
-- les réponses restent textuelles ;
-- ARIA continue de fonctionner normalement.
-
-Lorsque le mode vocal est activé :
-
-- la carte réapparaît ;
-- le grand bouton central permet de parler à ARIA ;
-- les réponses audio sont autorisées.
-
-Le choix reste mémorisé localement sur l’appareil.
-
-
-## Correctif v0.8.2
-
-La carte Mode vocal est désormais masquée par trois mécanismes simultanés :
-
-1. attribut HTML `hidden` ;
-2. classe CSS globale `voice-mode-disabled` ;
-3. style inline `display: none`.
-
-La gestion de visibilité est centralisée afin qu’aucune autre fonction ne
-puisse réafficher la carte lorsque le mode vocal est désactivé.
+- un PDF actif ;
+- pas de PDF protégé par mot de passe ;
+- 45 Mo maximum ;
+- analyse `detail: auto`.

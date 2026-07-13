@@ -739,7 +739,8 @@ dialog label {
   font-size: 0.75rem;
 }
 
-.image-attachment-card {
+.image-attachment-card,
+.pdf-attachment-card {
   display: grid;
   grid-template-columns: 92px minmax(0, 1fr) auto;
   align-items: center;
@@ -751,7 +752,8 @@ dialog label {
   background: rgba(7, 25, 34, 0.72);
 }
 
-.image-attachment-card[hidden] {
+.image-attachment-card[hidden],
+.pdf-attachment-card[hidden] {
   display: none;
 }
 
@@ -786,6 +788,60 @@ dialog label {
 .image-attachment-copy span {
   color: var(--muted);
   font-size: 0.75rem;
+}
+
+.pdf-attachment-card {
+  grid-template-columns: 70px minmax(0, 1fr) auto;
+  border-color: rgba(239, 193, 119, 0.30);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(59, 45, 26, 0.34),
+      rgba(7, 25, 34, 0.78)
+    );
+}
+
+.pdf-attachment-icon {
+  display: grid;
+  width: 62px;
+  height: 62px;
+  place-items: center;
+  border: 1px solid rgba(239, 193, 119, 0.36);
+  border-radius: 15px;
+  color: var(--warning);
+  background: rgba(239, 193, 119, 0.08);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.pdf-attachment-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.pdf-attachment-copy strong,
+.pdf-attachment-copy span,
+.pdf-attachment-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-attachment-copy strong {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.pdf-attachment-copy span {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.pdf-attachment-copy small {
+  color: var(--warning);
+  font-size: 0.71rem;
 }
 
 .command-row {
@@ -1130,7 +1186,8 @@ code {
     width: 100%;
   }
 
-  .image-attachment-card {
+  .image-attachment-card,
+  .pdf-attachment-card {
     grid-template-columns: 76px minmax(0, 1fr);
   }
 
@@ -1139,7 +1196,8 @@ code {
     height: 58px;
   }
 
-  .image-attachment-card button {
+  .image-attachment-card button,
+  .pdf-attachment-card button {
     grid-column: 1 / -1;
     width: 100%;
   }
