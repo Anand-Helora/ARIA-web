@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v0.5</title>
+  <title>ARIA — v0.5.1</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
   <script src="config.js"></script>
@@ -17,23 +17,31 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v0.5</span>
+          <span id="version-label" class="version-badge">v0.5.1</span>
         </div>
       </div>
       <div class="header-status">
-        <span id="connection-indicator" class="status-chip">Connexion requise</span>
+        <button
+          id="connection-indicator"
+          class="status-chip status-chip-button"
+          type="button"
+          aria-label="Gérer la connexion à ARIA Core"
+          title="Gérer la connexion à ARIA Core"
+        >
+          Connexion requise
+        </button>
         <span id="privacy-indicator" class="status-chip">Aucune capture active</span>
       </div>
     </header>
 
     <section id="visual-stage" aria-label="Visualisation ARIA"></section>
 
-    <section class="status-panel" aria-live="polite">
+    <section id="status-panel" class="status-panel" aria-live="polite">
       <p id="status-label">ARIA est prête.</p>
       <p id="detail-label">Connecte-toi au moteur privé pour commencer.</p>
     </section>
 
-    <section class="connection-panel" aria-labelledby="connection-title">
+    <section id="connection-panel" class="connection-panel" aria-labelledby="connection-title">
       <div>
         <p class="section-kicker">MOTEUR PRIVÉ</p>
         <h2 id="connection-title">ARIA Core</h2>
@@ -129,7 +137,7 @@
         </div>
       </div>
       <p class="footer-technical">
-        ARIA Web v0.5 · BRAIN privé actif · affichage conversationnel modulable
+        ARIA Web v0.5.1 · interface épurée après connexion · BRAIN privé actif
       </p>
       <p class="footer-safety">
         Validation humaine requise avant toute action métier.

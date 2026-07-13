@@ -153,12 +153,23 @@ h2 {
 }
 
 .status-chip {
+  min-height: auto;
   padding: 0.52rem 0.76rem;
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--muted);
   background: rgba(7, 25, 34, 0.72);
   font-size: 0.78rem;
+}
+
+.status-chip-button {
+  cursor: pointer;
+}
+
+.status-chip-button:hover:not(:disabled) {
+  transform: none;
+  border-color: rgba(131, 230, 239, 0.42);
+  background: rgba(15, 49, 59, 0.82);
 }
 
 .status-chip.connected {
@@ -207,6 +218,11 @@ h2 {
 .status-panel p:last-child {
   margin-bottom: 0;
   color: var(--muted);
+}
+
+.status-panel[hidden],
+.connection-panel[hidden] {
+  display: none;
 }
 
 .connection-panel {

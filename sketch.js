@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "0.5.0",
+  version: "0.5.1",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   requestTimeoutMs: 45000,
@@ -109,6 +109,7 @@ function initializeInterface() {
   getElement("toggle-conversation-button").addEventListener("click", toggleConversationVisibility);
   getElement("show-conversation-button").addEventListener("click", () => setConversationVisibility(true));
   getElement("connect-button").addEventListener("click", handleConnectionButton);
+  getElement("connection-indicator").addEventListener("click", handleConnectionButton);
 
   getElement("access-form").addEventListener("submit", saveAccessToken);
   getElement("dialog-close").addEventListener("click", closeAccessDialog);
@@ -201,7 +202,7 @@ async function requestRemoteAria() {
         messages,
         client: {
           name: "ARIA-web",
-          version: config.version || "0.5.0"
+          version: config.version || "0.5.1"
         }
       }),
       signal: controller.signal
@@ -710,7 +711,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "0.5.0").replace(/^v/, "")}`;
+    `v${String(config.version || "0.5.1").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.stream ? "Capture active" : "Aucune capture active";
@@ -725,13 +726,29 @@ function updateConnectionIndicator() {
   const indicator = getElement("connection-indicator");
   const button = getElement("connect-button");
   const detail = getElement("connection-detail");
+  const statusPanel = getElement("status-panel");
+  const connectionPanel = getElement("connection-panel");
 
   indicator.textContent = connected ? "Moteur connecté" : "Connexion requise";
   indicator.classList.toggle("connected", connected);
+  indicator.setAttribute(
+    "aria-label",
+    connected
+      ? "ARIA Core est connecté. Cliquer pour se déconnecter."
+      : "ARIA Core est déconnecté. Cliquer pour se connecter."
+  );
+  indicator.title = connected
+    ? "Cliquer pour se déconnecter d’ARIA Core"
+    : "Cliquer pour se connecter à ARIA Core";
+
   button.textContent = connected ? "Se déconnecter" : "Se connecter";
   detail.textContent = connected
     ? "Le code d’accès est actif uniquement pour cette session de navigateur."
     : "Le code d’accès reste uniquement dans cette session de navigateur.";
+
+  // Une fois connecté, l’interface principale est automatiquement épurée.
+  statusPanel.hidden = connected;
+  connectionPanel.hidden = connected;
 }
 
 function getModeDetail() {

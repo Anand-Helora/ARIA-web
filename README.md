@@ -1,4 +1,4 @@
-# ARIA Web v0.5.0
+# ARIA Web v0.5.1
 
 Interface publique d’ARIA reliée à **ARIA Core** sur Vercel.
 
@@ -55,3 +55,16 @@ L’utilisateur peut masquer ou réafficher la conversation textuelle avec le bo
 - les nouveaux échanges continuent d’être mémorisés ;
 - le choix d’affichage est conservé localement sur l’appareil ;
 - cette fonction prépare l’interface à un futur mode vocal uniquement.
+
+
+## Interface épurée après connexion
+
+Lorsque `ARIA_ACCESS_TOKEN` est actif dans la session :
+
+- le grand panneau d’état est masqué ;
+- le panneau `ARIA Core` est masqué ;
+- le bouton compact `Moteur connecté` reste visible dans l’en-tête ;
+- ce bouton permet de se déconnecter ;
+- les deux grands panneaux réapparaissent automatiquement après déconnexion.
+
+Cette adaptation prépare l’interface au futur fonctionnement vocal uniquement.
