@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.1.2",
+  version: "1.1.3",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -63,9 +63,13 @@ const ariaState = {
   imageBusy: false,
   pendingPdf: null,
   pdfBusy: false,
+  pdfUploadName: "",
   pdfUploadProgress: 0,
   documentAnalysis: null,
   documentAnalysisBusy: false,
+  documentAnalysisProgress: 0,
+  documentAnalysisStage: "",
+  documentAnalysisProgressTimer: null,
   pendingMemory: null,
   savedMemories: [],
   memoryBusy: false,
@@ -451,7 +455,7 @@ async function requestRemoteAria(image = null, pdf = null) {
           : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "1.1.2"
+          version: config.version || "1.1.3"
         }
       }),
       signal: controller.signal
@@ -3171,6 +3175,8 @@ function clearDocumentAnalysis(
   updateInterface = true
 ) {
   ariaState.documentAnalysis = null;
+  stopDocumentAnalysisProgress(0);
+  ariaState.documentAnalysisStage = "";
   saveDocumentAnalysisSession();
 
   if (updateInterface && domReady) {
@@ -3213,7 +3219,7 @@ async function requestDocumentClassification(
           client: {
             name: "ARIA-web",
             version:
-              config.version || "1.1.2"
+              config.version || "1.1.3"
           }
         }),
         signal: controller.signal
@@ -3235,6 +3241,10 @@ async function requestDocumentClassification(
       error.status = response.status;
       error.requestId =
         data.requestId || null;
+      error.stage =
+        data.stage || null;
+      error.retryable =
+        Boolean(data.retryable);
       throw error;
     }
 
@@ -3252,6 +3262,166 @@ async function requestDocumentClassification(
   } finally {
     window.clearTimeout(timeoutId);
   }
+}
+
+
+function getAnalysisProgressStage(
+  progress
+) {
+  if (progress < 15) {
+    return "Préparation du document";
+  }
+
+  if (progress < 30) {
+    return "Chargement des référentiels BRAIN";
+  }
+
+  if (progress < 50) {
+    return "Lecture du texte et des pages";
+  }
+
+  if (progress < 70) {
+    return "Extraction des métadonnées";
+  }
+
+  if (progress < 86) {
+    return "Validation des codes officiels";
+  }
+
+  return "Construction du nom proposé";
+}
+
+function stopDocumentAnalysisProgress(
+  finalProgress = null
+) {
+  if (
+    ariaState
+      .documentAnalysisProgressTimer
+  ) {
+    window.clearInterval(
+      ariaState
+        .documentAnalysisProgressTimer
+    );
+  }
+
+  ariaState
+    .documentAnalysisProgressTimer =
+      null;
+
+  if (
+    Number.isFinite(
+      finalProgress
+    )
+  ) {
+    ariaState
+      .documentAnalysisProgress =
+        Math.max(
+          0,
+          Math.min(
+            100,
+            finalProgress
+          )
+        );
+  }
+
+  ariaState.documentAnalysisStage =
+    getAnalysisProgressStage(
+      ariaState
+        .documentAnalysisProgress
+    );
+
+  updateDocumentAnalysisProgressInterface();
+}
+
+function startDocumentAnalysisProgress() {
+  stopDocumentAnalysisProgress(6);
+
+  ariaState.documentAnalysisStage =
+    "Préparation du document";
+
+  updateDocumentAnalysisProgressInterface();
+
+  ariaState
+    .documentAnalysisProgressTimer =
+      window.setInterval(
+        () => {
+          const current =
+            ariaState
+              .documentAnalysisProgress;
+
+          let increment = 0;
+
+          if (current < 25) {
+            increment = 3;
+          } else if (current < 55) {
+            increment = 2;
+          } else if (current < 78) {
+            increment = 1;
+          } else if (current < 92) {
+            increment = 0.5;
+          }
+
+          ariaState
+            .documentAnalysisProgress =
+              Math.min(
+                92,
+                current + increment
+              );
+
+          ariaState
+            .documentAnalysisStage =
+              getAnalysisProgressStage(
+                ariaState
+                  .documentAnalysisProgress
+              );
+
+          updateDocumentAnalysisProgressInterface();
+        },
+        900
+      );
+}
+
+function updateDocumentAnalysisProgressInterface() {
+  if (!domReady) return;
+
+  const block = getElement(
+    "document-analysis-progress"
+  );
+  const bar = getElement(
+    "document-analysis-progress-bar"
+  );
+  const label = getElement(
+    "document-analysis-progress-label"
+  );
+  const value = getElement(
+    "document-analysis-progress-value"
+  );
+
+  const visible =
+    ariaState.documentAnalysisBusy ||
+    (
+      ariaState
+        .documentAnalysisProgress >
+        0 &&
+      ariaState
+        .documentAnalysisProgress <
+        100
+    );
+
+  block.hidden = !visible;
+
+  const progress =
+    Math.round(
+      ariaState
+        .documentAnalysisProgress
+    );
+
+  bar.value = progress;
+  value.textContent =
+    `${progress} %`;
+  label.textContent =
+    ariaState.documentAnalysisStage ||
+    "Préparation de l’analyse";
 }
 
 async function classifyPendingPdf() {
@@ -3284,6 +3454,7 @@ async function classifyPendingPdf() {
   }
 
   ariaState.documentAnalysisBusy = true;
+  startDocumentAnalysisProgress();
   updateDocumentAnalysisInterface();
   updatePdfAttachmentInterface();
 
@@ -3301,6 +3472,7 @@ async function classifyPendingPdf() {
 
     ariaState.documentAnalysis =
       classification;
+    stopDocumentAnalysisProgress(100);
     saveDocumentAnalysisSession();
     updateDocumentAnalysisInterface();
 
@@ -3338,16 +3510,44 @@ async function classifyPendingPdf() {
       openAccessDialog();
     }
 
+    const stageLabel =
+      error?.stage
+        ? `Étape : ${error.stage}. `
+        : "";
+
+    stopDocumentAnalysisProgress(0);
+
     setState(
       "error",
       "Classement impossible.",
-      getReadableError(error)
+      `${stageLabel}${getReadableError(error)}`
     );
   } finally {
     ariaState.documentAnalysisBusy =
       false;
+
+    if (
+      ariaState
+        .documentAnalysisProgress >=
+        100
+    ) {
+      window.setTimeout(
+        () => {
+          ariaState
+            .documentAnalysisProgress =
+              0;
+          ariaState
+            .documentAnalysisStage =
+              "";
+          updateDocumentAnalysisProgressInterface();
+        },
+        550
+      );
+    }
+
     updateDocumentAnalysisInterface();
     updatePdfAttachmentInterface();
+    updateDocumentAnalysisProgressInterface();
   }
 }
 
@@ -3679,6 +3879,7 @@ function updateDocumentAnalysisInterface() {
       : "Métadonnées détectées";
 
   detailsPanel.open = false;
+  updateDocumentAnalysisProgressInterface();
 }
 
 async function writeClipboardText(
@@ -3971,6 +4172,8 @@ async function handlePdfFileSelection(event) {
 
   clearDocumentAnalysis(false);
   ariaState.pdfBusy = true;
+  ariaState.pdfUploadName =
+    file.name;
   ariaState.pdfUploadProgress = 0;
   updatePdfAttachmentInterface();
   updateDocumentAnalysisInterface();
@@ -4032,6 +4235,7 @@ async function handlePdfFileSelection(event) {
       (percent) => {
         ariaState.pdfUploadProgress =
           percent;
+        updatePdfAttachmentInterface();
         setState(
           "thinking",
           `Téléversement sécurisé : ${percent} %`,
@@ -4083,6 +4287,7 @@ async function handlePdfFileSelection(event) {
     );
   } finally {
     ariaState.pdfBusy = false;
+    ariaState.pdfUploadName = "";
     ariaState.pdfUploadProgress = 0;
     updatePdfAttachmentInterface();
   }
@@ -4090,6 +4295,7 @@ async function handlePdfFileSelection(event) {
 
 function clearPendingPdfLocal() {
   ariaState.pendingPdf = null;
+  ariaState.pdfUploadName = "";
   ariaState.pdfUploadProgress = 0;
   clearDocumentAnalysis(false);
   savePendingPdfSession();
@@ -4140,8 +4346,22 @@ function updatePdfAttachmentInterface() {
   const removeButton = getElement(
     "remove-pdf-button"
   );
+  const progressBlock = getElement(
+    "pdf-upload-progress"
+  );
+  const progressBar = getElement(
+    "pdf-upload-progress-bar"
+  );
+  const progressLabel = getElement(
+    "pdf-upload-progress-label"
+  );
+  const progressValue = getElement(
+    "pdf-upload-progress-value"
+  );
 
-  card.hidden = !pdf;
+  card.hidden =
+    !pdf &&
+    !ariaState.pdfBusy;
 
   addButton.disabled =
     ariaState.isBusy ||
@@ -4150,22 +4370,55 @@ function updatePdfAttachmentInterface() {
     !ariaState.accessToken;
 
   removeButton.disabled =
+    !pdf ||
     ariaState.isBusy ||
-    ariaState.pdfBusy;
+    ariaState.pdfBusy ||
+    ariaState.documentAnalysisBusy;
+
+  progressBlock.hidden =
+    !ariaState.pdfBusy;
+
+  const progress =
+    Math.max(
+      0,
+      Math.min(
+        100,
+        Math.round(
+          ariaState
+            .pdfUploadProgress
+        )
+      )
+    );
+
+  progressBar.value = progress;
+  progressValue.textContent =
+    `${progress} %`;
+  progressLabel.textContent =
+    progress <= 0
+      ? "Préparation du téléversement"
+      : "Téléversement sécurisé";
 
   if (!pdf) {
     getElement(
       "pdf-attachment-name"
-    ).textContent = "Document PDF";
+    ).textContent =
+      ariaState.pdfUploadName ||
+      "Document PDF";
+
     getElement(
       "pdf-attachment-details"
-    ).textContent = "";
+    ).textContent =
+      ariaState.pdfBusy
+        ? "Envoi vers le stockage privé"
+        : "";
+
     getElement(
       "pdf-attachment-status"
     ).textContent =
       ariaState.pdfBusy
-        ? `Téléversement : ${ariaState.pdfUploadProgress} %`
+        ? "Le fichier est en cours de téléversement."
         : "Stockage privé temporaire";
+
     updateDocumentAnalysisInterface();
     return;
   }
@@ -4173,10 +4426,12 @@ function updatePdfAttachmentInterface() {
   getElement(
     "pdf-attachment-name"
   ).textContent = pdf.name;
+
   getElement(
     "pdf-attachment-details"
   ).textContent =
     `${formatFileSize(pdf.size)} · analyse texte et pages`;
+
   getElement(
     "pdf-attachment-status"
   ).textContent =
@@ -4784,7 +5039,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.1.2").replace(/^v/, "")}`;
+    `v${String(config.version || "1.1.3").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf
