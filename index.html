@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v1.1.4</title>
-  <link rel="stylesheet" href="style.css?v=1.1.4" />
+  <title>ARIA — v1.2.0</title>
+  <link rel="stylesheet" href="style.css?v=1.2.0" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
-  <script src="config.js?v=1.1.4"></script>
+  <script src="config.js?v=1.2.0"></script>
 </head>
 <body>
   <main id="app-shell">
@@ -17,7 +17,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v1.1.4</span>
+          <span id="version-label" class="version-badge">v1.2.0</span>
         </div>
       </div>
       <div class="header-status">
@@ -380,32 +380,160 @@
             class="document-analysis-summary"
           ></p>
 
-          <div class="document-filename-block compact-filename">
+          <div class="document-filename-block">
             <div class="document-filename-copy">
               <span>Nom proposé</span>
               <code id="document-suggested-filename"></code>
             </div>
-            <button
-              id="copy-document-filename-button"
-              class="compact"
-              type="button"
+            <div
+              id="document-filename-validation"
+              class="document-filename-validation"
             >
-              Copier
-            </button>
+              En attente de validation
+            </div>
           </div>
+
+          <details
+            id="document-editor-panel"
+            class="document-editor-panel"
+          >
+            <summary>
+              Corriger les métadonnées
+            </summary>
+
+            <p class="document-editor-help">
+              Les listes proviennent du référentiel BRAIN Knowledge actif.
+              Le nom est recalculé après chaque correction.
+            </p>
+
+            <div
+              id="document-editor-loading"
+              class="document-editor-loading"
+              hidden
+            >
+              Chargement des référentiels officiels…
+            </div>
+
+            <form
+              id="document-metadata-editor"
+              class="document-editor-grid"
+              autocomplete="off"
+            >
+              <label>
+                <span>Phase</span>
+                <select id="document-field-phase">
+                  <option value="">À compléter</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Pôle</span>
+                <select id="document-field-pole">
+                  <option value="">À compléter</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Site</span>
+                <select id="document-field-site-id">
+                  <option value="">À compléter</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Bloc</span>
+                <input
+                  id="document-field-bloc"
+                  type="text"
+                  maxlength="30"
+                  placeholder="B"
+                />
+              </label>
+
+              <label>
+                <span>Étage</span>
+                <input
+                  id="document-field-etage"
+                  type="text"
+                  maxlength="20"
+                  placeholder="N00 ou S-1"
+                />
+              </label>
+
+              <label>
+                <span>Numéro</span>
+                <input
+                  id="document-field-numero"
+                  type="text"
+                  maxlength="20"
+                  placeholder="007"
+                />
+              </label>
+
+              <label>
+                <span>Type</span>
+                <select id="document-field-type">
+                  <option value="">À compléter</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Discipline</span>
+                <select id="document-field-discipline">
+                  <option value="">À compléter</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Technique</span>
+                <select id="document-field-technique">
+                  <option value="">À compléter</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Indice</span>
+                <input
+                  id="document-field-indice"
+                  type="text"
+                  maxlength="20"
+                  placeholder="A"
+                />
+              </label>
+
+              <label>
+                <span>Date</span>
+                <input
+                  id="document-field-date"
+                  type="date"
+                />
+              </label>
+
+              <label class="document-editor-description">
+                <span>Description</span>
+                <input
+                  id="document-field-description"
+                  type="text"
+                  maxlength="100"
+                  placeholder="Mise-en-BIM"
+                />
+              </label>
+            </form>
+
+            <div
+              id="document-editor-status"
+              class="document-editor-status"
+              aria-live="polite"
+            ></div>
+          </details>
 
           <details
             id="document-details-panel"
             class="document-details-panel"
           >
             <summary id="document-details-summary">
-              Voir les métadonnées et contrôles
+              Voir les contrôles et les preuves
             </summary>
-
-            <div
-              id="document-metadata-grid"
-              class="document-metadata-grid"
-            ></div>
 
             <div
               id="document-missing-block"
@@ -435,17 +563,31 @@
           </details>
         </div>
 
-        <div class="document-analysis-actions">
+        <div class="document-analysis-actions document-editor-actions">
+          <button
+            id="copy-document-filename-button"
+            class="secondary compact"
+            type="button"
+          >
+            Copier le nom
+          </button>
+          <button
+            id="download-renamed-pdf-button"
+            class="compact"
+            type="button"
+          >
+            Télécharger la copie renommée
+          </button>
           <button
             id="classify-pdf-button"
-            class="compact"
+            class="secondary compact"
             type="button"
           >
             Analyser et classer
           </button>
           <button
             id="remove-pdf-button"
-            class="secondary compact"
+            class="secondary compact danger-button"
             type="button"
           >
             Retirer le document
@@ -496,7 +638,7 @@
         </div>
       </div>
       <p class="footer-technical">
-        ARIA Web v1.1.4 · affichage fiabilisé · cache maîtrisé
+        ARIA Web v1.2.0 · éditeur documentaire · validation humaine
       </p>
       <p class="footer-safety">
         Validation humaine requise avant toute action métier.
@@ -684,6 +826,6 @@
   </dialog>
 
   <noscript>JavaScript doit être activé pour utiliser ARIA.</noscript>
-  <script src="sketch.js?v=1.1.4"></script>
+  <script src="sketch.js?v=1.2.0"></script>
 </body>
 </html>

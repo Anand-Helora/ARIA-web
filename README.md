@@ -1,26 +1,34 @@
-# ARIA Web v1.1.4 — Correction d’affichage et de cache
+# ARIA Web v1.2.0 — Éditeur documentaire
 
-## Correction principale
+## Parcours
 
-Les ressources utilisent maintenant un numéro de version dans leur URL :
+1. ajouter un PDF ;
+2. lancer l’analyse ;
+3. ouvrir `Corriger les métadonnées` ;
+4. vérifier ou modifier les valeurs ;
+5. télécharger une copie renommée.
+
+## Référentiels officiels
+
+Les listes sont chargées depuis BRAIN Knowledge :
+
+- phases ;
+- pôles ;
+- sites ;
+- types de documents ;
+- disciplines ;
+- techniques.
+
+Les sites sont filtrés selon le pôle sélectionné.  
+Les techniques sont filtrées selon la discipline sélectionnée.
+
+## Nomenclature
 
 ```text
-style.css?v=1.1.4
-config.js?v=1.1.4
-sketch.js?v=1.1.4
+Phase_Pôle_Site_Bloc_Étage_Numéro_Type_Discipline_Technique#Indice_Date_Description
 ```
 
-Le navigateur ne peut donc plus combiner un ancien HTML avec un nouveau
-JavaScript après une mise à jour GitHub Pages.
+## Sécurité
 
-## Résultat garanti
-
-Après l’analyse, ARIA force explicitement l’affichage du bloc de résultat.
-
-En cas d’échec, la carte affiche directement :
-
-- le message ;
-- l’étape ;
-- un code de diagnostic.
-
-Le bouton reste utilisable pour relancer l’analyse.
+Le PDF original n’est pas modifié. Le navigateur télécharge une copie à partir
+d’une URL privée temporaire, avec le nom validé par l’utilisateur.

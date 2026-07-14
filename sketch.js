@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.1.4",
+  version: "1.2.0",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -29,7 +29,7 @@ const config = window.ARIA_CONFIG || {
   textInputVisibilityKey: "aria.web.text-input-visible.v0.7.2",
   autoSpeakKey: "aria.web.voice-output-enabled.v0.8",
   pdfSessionKey: "aria.web.pending-pdf.session.v0.9",
-  documentAnalysisSessionKey: "aria.web.document-analysis.session.v1.0",
+  documentAnalysisSessionKey: "aria.web.document-analysis.session.v1.2",
   speechRateKey: "aria.web.speech-rate.v0.6",
   speechVoiceKey: "aria.web.speech-voice.v0.6.1"
 };
@@ -72,6 +72,13 @@ const ariaState = {
   documentAnalysisProgressTimer: null,
   documentAnalysisError: null,
   documentAnalysisDiagnostics: null,
+  documentEditorReferences: null,
+  documentEditorMetadata: null,
+  documentEditorSiteId: "",
+  documentEditorBusy: false,
+  documentEditorLoadBusy: false,
+  documentEditorNormalizationTimer: null,
+  documentDownloadBusy: false,
   pendingMemory: null,
   savedMemories: [],
   memoryBusy: false,
@@ -214,6 +221,18 @@ function initializeInterface() {
   getElement("copy-document-filename-button").addEventListener(
     "click",
     copySuggestedDocumentFilename
+  );
+  getElement("download-renamed-pdf-button").addEventListener(
+    "click",
+    downloadRenamedPdf
+  );
+  getElement("document-metadata-editor").addEventListener(
+    "input",
+    handleDocumentEditorInput
+  );
+  getElement("document-metadata-editor").addEventListener(
+    "change",
+    handleDocumentEditorInput
   );
   getElement("capture-screen-button").addEventListener(
     "click",
@@ -457,7 +476,7 @@ async function requestRemoteAria(image = null, pdf = null) {
           : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "1.1.4"
+          version: config.version || "1.2.0"
         }
       }),
       signal: controller.signal
@@ -3123,7 +3142,11 @@ function saveDocumentAnalysisSession() {
           pathname:
             ariaState.pendingPdf.pathname,
           analysis:
-            ariaState.documentAnalysis
+            ariaState.documentAnalysis,
+          editorMetadata:
+            ariaState.documentEditorMetadata,
+          editorSiteId:
+            ariaState.documentEditorSiteId
         })
       );
     } else {
@@ -3163,6 +3186,18 @@ function loadDocumentAnalysisSession() {
     ) {
       ariaState.documentAnalysis =
         parsed.analysis;
+      ariaState.documentEditorMetadata =
+        parsed.editorMetadata &&
+        typeof parsed.editorMetadata ===
+          "object"
+          ? parsed.editorMetadata
+          : {
+              ...parsed.analysis.metadata
+            };
+      ariaState.documentEditorSiteId =
+        String(
+          parsed.editorSiteId || ""
+        );
     }
   } catch (error) {
     console.warn(
@@ -3179,6 +3214,21 @@ function clearDocumentAnalysis(
   ariaState.documentAnalysis = null;
   ariaState.documentAnalysisError = null;
   ariaState.documentAnalysisDiagnostics = null;
+  ariaState.documentEditorMetadata = null;
+  ariaState.documentEditorSiteId = "";
+  ariaState.documentEditorBusy = false;
+  ariaState.documentDownloadBusy = false;
+
+  if (
+    ariaState.documentEditorNormalizationTimer
+  ) {
+    window.clearTimeout(
+      ariaState.documentEditorNormalizationTimer
+    );
+    ariaState.documentEditorNormalizationTimer =
+      null;
+  }
+
   stopDocumentAnalysisProgress(0);
   ariaState.documentAnalysisStage = "";
   saveDocumentAnalysisSession();
@@ -3213,6 +3263,7 @@ async function requestDocumentClassification(
             `Bearer ${ariaState.accessToken}`
         },
         body: JSON.stringify({
+          action: "classify",
           pdf: {
             pathname: pdf.pathname,
             name: pdf.name,
@@ -3223,7 +3274,7 @@ async function requestDocumentClassification(
           client: {
             name: "ARIA-web",
             version:
-              config.version || "1.1.4"
+              config.version || "1.2.0"
           }
         }),
         signal: controller.signal
@@ -3492,7 +3543,21 @@ async function classifyPendingPdf() {
       result.diagnostics;
     ariaState.documentAnalysisError =
       null;
+    ariaState.documentEditorMetadata = {
+      ...classification.metadata
+    };
+    ariaState.documentEditorSiteId = "";
     stopDocumentAnalysisProgress(100);
+
+    await loadDocumentEditorReferences()
+      .catch((error) => {
+        console.warn(
+          "Référentiels éditeur indisponibles.",
+          error
+        );
+      });
+
+    resolveEditorSiteIdFromMetadata();
     saveDocumentAnalysisSession();
     updateDocumentAnalysisInterface();
 
@@ -3670,6 +3735,1149 @@ function setElementDisplayed(
   }
 }
 
+
+const DOCUMENT_EDITOR_FIELD_IDS =
+  Object.freeze({
+    phase: "document-field-phase",
+    pole: "document-field-pole",
+    siteId: "document-field-site-id",
+    bloc: "document-field-bloc",
+    etage: "document-field-etage",
+    numero: "document-field-numero",
+    type_document: "document-field-type",
+    discipline: "document-field-discipline",
+    technique: "document-field-technique",
+    indice: "document-field-indice",
+    date: "document-field-date",
+    description: "document-field-description"
+  });
+
+function normalizeEditorCode(
+  value,
+  maxLength = 30
+) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(
+      /[\u0300-\u036f]/g,
+      ""
+    )
+    .toUpperCase()
+    .replace(
+      /[^A-Z0-9.-]+/g,
+      "-"
+    )
+    .replace(/-{2,}/g, "-")
+    .replace(
+      /^[.-]+|[.-]+$/g,
+      ""
+    )
+    .slice(0, maxLength);
+}
+
+function normalizeEditorFloor(
+  value
+) {
+  const raw =
+    normalizeEditorCode(
+      value,
+      20
+    );
+
+  if (/^N\d{1,2}$/.test(raw)) {
+    return `N${raw
+      .slice(1)
+      .padStart(2, "0")}`;
+  }
+
+  if (/^S-?\d+$/.test(raw)) {
+    const number = raw
+      .replace(/^S-?/, "")
+      .replace(/^0+/, "") ||
+      "0";
+
+    return `S-${number}`;
+  }
+
+  return raw;
+}
+
+function normalizeEditorRoomNumber(
+  value
+) {
+  const raw = String(value || "")
+    .trim()
+    .replace(/\s+/g, "");
+
+  const match = raw.match(
+    /^(\d{1,3})(\.\d+)?$/
+  );
+
+  if (!match) {
+    return normalizeEditorCode(
+      raw,
+      20
+    );
+  }
+
+  return `${match[1].padStart(
+    3,
+    "0"
+  )}${match[2] || ""}`;
+}
+
+function normalizeEditorDescription(
+  value
+) {
+  return String(value || "")
+    .normalize("NFC")
+    .replace(
+      /[<>:"/\\|?*\u0000-\u001F]/g,
+      " "
+    )
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 100);
+}
+
+function documentPlaceholder(
+  field
+) {
+  return `[${String(field)
+    .toUpperCase()}]`;
+}
+
+function buildEditorFilename(
+  metadata
+) {
+  const segments = [
+    metadata.phase ||
+      documentPlaceholder("phase"),
+    metadata.pole ||
+      documentPlaceholder("pole"),
+    metadata.site ||
+      documentPlaceholder("site"),
+    metadata.bloc ||
+      documentPlaceholder("bloc"),
+    metadata.etage ||
+      documentPlaceholder("etage"),
+    metadata.numero ||
+      documentPlaceholder("numero"),
+    metadata.type_document ||
+      documentPlaceholder("type"),
+    metadata.discipline ||
+      documentPlaceholder("discipline"),
+    metadata.technique ||
+      documentPlaceholder("technique")
+  ];
+
+  return [
+    `${segments.join("_")}#${
+      metadata.indice ||
+      documentPlaceholder("indice")
+    }`,
+    metadata.date ||
+      documentPlaceholder("date"),
+    metadata.description ||
+      documentPlaceholder("description")
+  ].join("_") + ".pdf";
+}
+
+function getEditorMissingFields(
+  metadata
+) {
+  return [
+    "phase",
+    "pole",
+    "site",
+    "bloc",
+    "etage",
+    "numero",
+    "type_document",
+    "discipline",
+    "technique",
+    "indice",
+    "date",
+    "description"
+  ].filter(
+    (field) =>
+      !metadata?.[field]
+  );
+}
+
+function createSelectOption(
+  value,
+  label,
+  selected = false
+) {
+  const option =
+    document.createElement(
+      "option"
+    );
+
+  option.value =
+    String(value || "");
+  option.textContent =
+    String(label || value || "");
+  option.selected =
+    Boolean(selected);
+
+  return option;
+}
+
+async function loadDocumentEditorReferences() {
+  if (
+    ariaState.documentEditorReferences ||
+    ariaState.documentEditorLoadBusy ||
+    !ariaState.accessToken
+  ) {
+    return ariaState
+      .documentEditorReferences;
+  }
+
+  ariaState.documentEditorLoadBusy =
+    true;
+  updateDocumentEditorInterface();
+
+  try {
+    const data =
+      await knowledgeApiRequest(
+        "POST",
+        {
+          action:
+            "editor_references"
+        }
+      );
+
+    if (
+      !data.references ||
+      typeof data.references !==
+        "object"
+    ) {
+      throw new Error(
+        "BRAIN Knowledge n’a renvoyé aucun référentiel documentaire."
+      );
+    }
+
+    ariaState.documentEditorReferences =
+      data.references;
+
+    resolveEditorSiteIdFromMetadata();
+    renderDocumentEditorOptions();
+
+    return data.references;
+  } finally {
+    ariaState.documentEditorLoadBusy =
+      false;
+    updateDocumentEditorInterface();
+  }
+}
+
+function getEditorSitesForPole(
+  poleCode
+) {
+  const sites =
+    ariaState
+      .documentEditorReferences
+      ?.sites || [];
+
+  return sites.filter(
+    (site) =>
+      !poleCode ||
+      site.poleCode ===
+        poleCode
+  );
+}
+
+function getEditorTechniquesForDiscipline(
+  disciplineCode
+) {
+  const pairs =
+    ariaState
+      .documentEditorReferences
+      ?.disciplineTechniques || [];
+
+  return pairs.filter(
+    (pair) =>
+      !disciplineCode ||
+      pair.disciplineCode ===
+        disciplineCode
+  );
+}
+
+function resolveEditorSiteIdFromMetadata() {
+  const metadata =
+    ariaState.documentEditorMetadata ||
+    ariaState.documentAnalysis
+      ?.metadata;
+
+  const sites =
+    ariaState
+      .documentEditorReferences
+      ?.sites || [];
+
+  if (
+    !metadata?.site ||
+    sites.length === 0
+  ) {
+    return;
+  }
+
+  const candidates = sites.filter(
+    (site) =>
+      site.shortCode ===
+        metadata.site &&
+      (
+        !metadata.pole ||
+        site.poleCode ===
+          metadata.pole
+      )
+  );
+
+  if (candidates.length === 1) {
+    ariaState.documentEditorSiteId =
+      candidates[0].id;
+  }
+}
+
+function renderDocumentEditorOptions() {
+  if (
+    !domReady ||
+    !ariaState
+      .documentEditorReferences
+  ) {
+    return;
+  }
+
+  const references =
+    ariaState.documentEditorReferences;
+  const metadata =
+    ariaState.documentEditorMetadata ||
+    ariaState.documentAnalysis
+      ?.metadata ||
+    {};
+
+  const phaseSelect =
+    getElement(
+      DOCUMENT_EDITOR_FIELD_IDS.phase
+    );
+  phaseSelect.replaceChildren(
+    createSelectOption(
+      "",
+      "À compléter"
+    ),
+    ...references.phases.map(
+      (phase) =>
+        createSelectOption(
+          phase.code,
+          `${phase.code} — ${phase.label}`,
+          phase.code ===
+            metadata.phase
+        )
+    )
+  );
+
+  const poleSelect =
+    getElement(
+      DOCUMENT_EDITOR_FIELD_IDS.pole
+    );
+  poleSelect.replaceChildren(
+    createSelectOption(
+      "",
+      "À compléter"
+    ),
+    ...references.poles.map(
+      (pole) =>
+        createSelectOption(
+          pole.code,
+          `${pole.code} — ${pole.label}`,
+          pole.code ===
+            metadata.pole
+        )
+    )
+  );
+
+  const typeSelect =
+    getElement(
+      DOCUMENT_EDITOR_FIELD_IDS
+        .type_document
+    );
+  typeSelect.replaceChildren(
+    createSelectOption(
+      "",
+      "À compléter"
+    ),
+    ...references
+      .documentTypes
+      .map(
+        (type) =>
+          createSelectOption(
+            type.code,
+            `${type.code} — ${type.label}`,
+            type.code ===
+              metadata.type_document
+          )
+      )
+  );
+
+  const disciplineSelect =
+    getElement(
+      DOCUMENT_EDITOR_FIELD_IDS
+        .discipline
+    );
+  disciplineSelect.replaceChildren(
+    createSelectOption(
+      "",
+      "À compléter"
+    ),
+    ...references
+      .disciplines
+      .map(
+        (discipline) =>
+          createSelectOption(
+            discipline.code,
+            `${discipline.code} — ${discipline.label}`,
+            discipline.code ===
+              metadata.discipline
+          )
+      )
+  );
+
+  renderEditorSiteOptions();
+  renderEditorTechniqueOptions();
+}
+
+function renderEditorSiteOptions() {
+  if (
+    !ariaState
+      .documentEditorReferences
+  ) {
+    return;
+  }
+
+  const metadata =
+    ariaState.documentEditorMetadata ||
+    {};
+  const select = getElement(
+    DOCUMENT_EDITOR_FIELD_IDS.siteId
+  );
+  const sites =
+    getEditorSitesForPole(
+      metadata.pole
+    );
+
+  select.replaceChildren(
+    createSelectOption(
+      "",
+      "À compléter"
+    ),
+    ...sites.map((site) => {
+      const status =
+        site.status &&
+        site.status !== "active"
+          ? ` · ${site.status}`
+          : "";
+      const locality =
+        site.locality
+          ? ` · ${site.locality}`
+          : "";
+
+      return createSelectOption(
+        site.id,
+        `${site.shortCode} — ${site.fullName}${locality}${status}`,
+        site.id ===
+          ariaState
+            .documentEditorSiteId
+      );
+    })
+  );
+}
+
+function renderEditorTechniqueOptions() {
+  if (
+    !ariaState
+      .documentEditorReferences
+  ) {
+    return;
+  }
+
+  const metadata =
+    ariaState.documentEditorMetadata ||
+    {};
+  const select = getElement(
+    DOCUMENT_EDITOR_FIELD_IDS
+      .technique
+  );
+  const pairs =
+    getEditorTechniquesForDiscipline(
+      metadata.discipline
+    );
+
+  select.replaceChildren(
+    createSelectOption(
+      "",
+      "À compléter"
+    ),
+    ...pairs.map(
+      (pair) =>
+        createSelectOption(
+          pair.techniqueCode,
+          `${pair.techniqueCode} — ${pair.techniqueLabel}`,
+          pair.techniqueCode ===
+            metadata.technique
+        )
+    )
+  );
+}
+
+function syncDocumentEditorValues() {
+  if (!domReady) return;
+
+  const metadata =
+    ariaState.documentEditorMetadata ||
+    ariaState.documentAnalysis
+      ?.metadata;
+
+  if (!metadata) return;
+
+  const directValues = {
+    phase:
+      metadata.phase,
+    pole:
+      metadata.pole,
+    bloc:
+      metadata.bloc,
+    etage:
+      metadata.etage,
+    numero:
+      metadata.numero,
+    type_document:
+      metadata.type_document ||
+      metadata.effective_type,
+    discipline:
+      metadata.discipline,
+    technique:
+      metadata.technique,
+    indice:
+      metadata.indice,
+    date:
+      metadata.date,
+    description:
+      metadata.description
+  };
+
+  for (
+    const [field, value]
+    of Object.entries(
+      directValues
+    )
+  ) {
+    const element =
+      getElement(
+        DOCUMENT_EDITOR_FIELD_IDS[
+          field
+        ]
+      );
+
+    if (
+      element &&
+      document.activeElement !==
+        element
+    ) {
+      element.value =
+        String(value || "");
+    }
+  }
+
+  const siteSelect =
+    getElement(
+      DOCUMENT_EDITOR_FIELD_IDS.siteId
+    );
+
+  if (
+    document.activeElement !==
+      siteSelect
+  ) {
+    siteSelect.value =
+      ariaState
+        .documentEditorSiteId ||
+      "";
+  }
+}
+
+function readDocumentEditorMetadata() {
+  const references =
+    ariaState.documentEditorReferences;
+  const selectedSiteId =
+    getElement(
+      DOCUMENT_EDITOR_FIELD_IDS.siteId
+    ).value;
+  const selectedSite =
+    references?.sites?.find(
+      (site) =>
+        site.id ===
+        selectedSiteId
+    );
+
+  ariaState.documentEditorSiteId =
+    selectedSiteId;
+
+  return {
+    phase:
+      getElement(
+        DOCUMENT_EDITOR_FIELD_IDS.phase
+      ).value,
+    pole:
+      getElement(
+        DOCUMENT_EDITOR_FIELD_IDS.pole
+      ).value,
+    site:
+      selectedSite?.shortCode ||
+      "",
+    bloc:
+      normalizeEditorCode(
+        getElement(
+          DOCUMENT_EDITOR_FIELD_IDS.bloc
+        ).value,
+        30
+      ),
+    etage:
+      normalizeEditorFloor(
+        getElement(
+          DOCUMENT_EDITOR_FIELD_IDS.etage
+        ).value
+      ),
+    numero:
+      normalizeEditorRoomNumber(
+        getElement(
+          DOCUMENT_EDITOR_FIELD_IDS.numero
+        ).value
+      ),
+    type_document:
+      getElement(
+        DOCUMENT_EDITOR_FIELD_IDS
+          .type_document
+      ).value,
+    discipline:
+      getElement(
+        DOCUMENT_EDITOR_FIELD_IDS
+          .discipline
+      ).value,
+    technique:
+      getElement(
+        DOCUMENT_EDITOR_FIELD_IDS
+          .technique
+      ).value,
+    indice:
+      normalizeEditorCode(
+        getElement(
+          DOCUMENT_EDITOR_FIELD_IDS.indice
+        ).value,
+        20
+      ),
+    date:
+      getElement(
+        DOCUMENT_EDITOR_FIELD_IDS.date
+      ).value,
+    description:
+      normalizeEditorDescription(
+        getElement(
+          DOCUMENT_EDITOR_FIELD_IDS
+            .description
+        ).value
+      )
+  };
+}
+
+function applyLocalDocumentEditorMetadata(
+  metadata
+) {
+  ariaState.documentEditorMetadata =
+    metadata;
+
+  if (
+    ariaState.documentAnalysis
+  ) {
+    const missing =
+      getEditorMissingFields(
+        metadata
+      );
+
+    ariaState.documentAnalysis = {
+      ...ariaState.documentAnalysis,
+      metadata: {
+        ...metadata,
+        effective_type:
+          metadata.type_document
+      },
+      missing_fields:
+        missing,
+      suggested_filename:
+        buildEditorFilename(
+          metadata
+        ),
+      filename_complete:
+        missing.length === 0
+    };
+  }
+
+  saveDocumentAnalysisSession();
+  updateDocumentAnalysisInterface();
+}
+
+function handleDocumentEditorInput(
+  event
+) {
+  if (
+    !ariaState.documentAnalysis ||
+    ariaState.documentEditorBusy
+  ) {
+    return;
+  }
+
+  const target = event.target;
+
+  if (
+    !(target instanceof HTMLElement)
+  ) {
+    return;
+  }
+
+  const previous =
+    ariaState.documentEditorMetadata ||
+    {};
+  let metadata =
+    readDocumentEditorMetadata();
+
+  if (
+    target.id ===
+    DOCUMENT_EDITOR_FIELD_IDS.pole
+  ) {
+    ariaState.documentEditorSiteId =
+      "";
+    metadata.site = "";
+    renderEditorSiteOptions();
+  }
+
+  if (
+    target.id ===
+    DOCUMENT_EDITOR_FIELD_IDS
+      .discipline
+  ) {
+    metadata.technique = "";
+    renderEditorTechniqueOptions();
+  }
+
+  if (
+    target.id ===
+      DOCUMENT_EDITOR_FIELD_IDS.siteId &&
+    metadata.site
+  ) {
+    const site =
+      ariaState
+        .documentEditorReferences
+        ?.sites
+        ?.find(
+          (item) =>
+            item.id ===
+              ariaState
+                .documentEditorSiteId
+        );
+
+    if (
+      site?.poleCode &&
+      site.poleCode !==
+        metadata.pole
+    ) {
+      metadata.pole =
+        site.poleCode;
+      getElement(
+        DOCUMENT_EDITOR_FIELD_IDS.pole
+      ).value =
+        site.poleCode;
+    }
+  }
+
+  if (
+    target.id ===
+      DOCUMENT_EDITOR_FIELD_IDS.pole &&
+    previous.pole === metadata.pole
+  ) {
+    metadata.site =
+      previous.site || "";
+  }
+
+  applyLocalDocumentEditorMetadata(
+    metadata
+  );
+  scheduleDocumentMetadataNormalization();
+}
+
+function scheduleDocumentMetadataNormalization() {
+  if (
+    ariaState
+      .documentEditorNormalizationTimer
+  ) {
+    window.clearTimeout(
+      ariaState
+        .documentEditorNormalizationTimer
+    );
+  }
+
+  ariaState
+    .documentEditorNormalizationTimer =
+      window.setTimeout(
+        normalizeEditedDocumentMetadata,
+        550
+      );
+}
+
+async function requestDocumentMetadataNormalization(
+  metadata
+) {
+  const controller =
+    new AbortController();
+  const timeoutId =
+    window.setTimeout(
+      () => controller.abort(),
+      Number(
+        config.documentRequestTimeoutMs
+      ) || 180000
+    );
+
+  try {
+    const response = await fetch(
+      config.documentApiUrl,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+          "Authorization":
+            `Bearer ${ariaState.accessToken}`
+        },
+        body: JSON.stringify({
+          action:
+            "normalize_metadata",
+          metadata,
+          previousClassification:
+            ariaState.documentAnalysis,
+          sourceName:
+            ariaState.pendingPdf?.name ||
+            "document.pdf",
+          client: {
+            name: "ARIA-web",
+            version:
+              config.version ||
+              "1.2.0"
+          }
+        }),
+        signal:
+          controller.signal
+      }
+    );
+
+    const data = await response
+      .json()
+      .catch(() => ({}));
+
+    if (!response.ok) {
+      const error = new Error(
+        data.error ||
+        "La validation des métadonnées a échoué."
+      );
+      error.status =
+        response.status;
+      error.stage =
+        data.stage || null;
+      throw error;
+    }
+
+    if (
+      !data.classification ||
+      typeof data.classification !==
+        "object"
+    ) {
+      throw new Error(
+        "ARIA Core n’a renvoyé aucune validation exploitable."
+      );
+    }
+
+    return data.classification;
+  } finally {
+    window.clearTimeout(
+      timeoutId
+    );
+  }
+}
+
+async function normalizeEditedDocumentMetadata() {
+  if (
+    !ariaState.documentAnalysis ||
+    !ariaState.documentEditorMetadata ||
+    !ariaState.accessToken ||
+    ariaState.documentEditorBusy
+  ) {
+    return;
+  }
+
+  ariaState.documentEditorBusy =
+    true;
+  updateDocumentEditorInterface();
+
+  try {
+    const classification =
+      await requestDocumentMetadataNormalization(
+        ariaState
+          .documentEditorMetadata
+      );
+
+    ariaState.documentAnalysis =
+      classification;
+    ariaState.documentEditorMetadata = {
+      ...classification.metadata
+    };
+
+    resolveEditorSiteIdFromMetadata();
+    saveDocumentAnalysisSession();
+  } catch (error) {
+    console.error(
+      "Metadata normalization failed:",
+      error
+    );
+
+    setState(
+      "error",
+      "Validation du nom impossible.",
+      getReadableError(error)
+    );
+  } finally {
+    ariaState.documentEditorBusy =
+      false;
+    renderDocumentEditorOptions();
+    syncDocumentEditorValues();
+    updateDocumentAnalysisInterface();
+  }
+}
+
+function updateDocumentEditorInterface() {
+  if (!domReady) return;
+
+  const loading =
+    getElement(
+      "document-editor-loading"
+    );
+  const status =
+    getElement(
+      "document-editor-status"
+    );
+  const form =
+    getElement(
+      "document-metadata-editor"
+    );
+
+  const hasAnalysis =
+    Boolean(
+      ariaState.documentAnalysis
+    );
+  const referencesReady =
+    Boolean(
+      ariaState
+        .documentEditorReferences
+    );
+
+  loading.hidden =
+    !ariaState
+      .documentEditorLoadBusy;
+
+  form.hidden =
+    !hasAnalysis ||
+    !referencesReady;
+
+  for (
+    const element
+    of form.querySelectorAll(
+      "input, select"
+    )
+  ) {
+    element.disabled =
+      ariaState.documentEditorBusy ||
+      ariaState
+        .documentEditorLoadBusy;
+  }
+
+  const missing =
+    getEditorMissingFields(
+      ariaState
+        .documentEditorMetadata ||
+      ariaState.documentAnalysis
+        ?.metadata ||
+      {}
+    );
+
+  if (
+    ariaState.documentEditorLoadBusy
+  ) {
+    status.textContent =
+      "Chargement des listes officielles…";
+  } else if (
+    !referencesReady
+  ) {
+    status.textContent =
+      "Les référentiels officiels ne sont pas encore disponibles.";
+  } else if (
+    ariaState.documentEditorBusy
+  ) {
+    status.textContent =
+      "Validation du nom par ARIA Core…";
+  } else if (
+    missing.length > 0
+  ) {
+    status.textContent =
+      `${missing.length} champ(s) restent à compléter.`;
+  } else {
+    status.textContent =
+      "Nom complet et validé par les référentiels officiels.";
+  }
+}
+
+async function downloadRenamedPdf() {
+  const pdf =
+    ariaState.pendingPdf;
+  const analysis =
+    ariaState.documentAnalysis;
+  const filename =
+    analysis?.suggested_filename;
+
+  if (
+    !pdf ||
+    !filename ||
+    !analysis?.filename_complete ||
+    ariaState.documentDownloadBusy
+  ) {
+    setState(
+      "error",
+      "Téléchargement indisponible.",
+      "Complète et valide toutes les métadonnées avant de télécharger la copie."
+    );
+    return;
+  }
+
+  ariaState.documentDownloadBusy =
+    true;
+  updateDocumentAnalysisInterface();
+
+  setState(
+    "thinking",
+    "Préparation de la copie renommée…",
+    "Le PDF original reste inchangé dans le stockage privé."
+  );
+
+  let objectUrl = "";
+
+  try {
+    await normalizeEditedDocumentMetadata();
+
+    if (
+      !ariaState.documentAnalysis
+        ?.filename_complete
+    ) {
+      throw new Error(
+        "Le nom n’est pas encore complet."
+      );
+    }
+
+    const data =
+      await requestPdfService({
+        action:
+          "prepare_download",
+        pathname:
+          pdf.pathname,
+        name:
+          pdf.name,
+        size:
+          pdf.size
+      });
+
+    if (
+      !data.download?.fileUrl
+    ) {
+      throw new Error(
+        "ARIA Core n’a pas fourni de lien de téléchargement."
+      );
+    }
+
+    const response =
+      await fetch(
+        data.download.fileUrl,
+        {
+          cache: "no-store"
+        }
+      );
+
+    if (!response.ok) {
+      throw new Error(
+        `Le stockage privé a répondu avec le statut ${response.status}.`
+      );
+    }
+
+    const blob =
+      await response.blob();
+
+    objectUrl =
+      URL.createObjectURL(
+        blob
+      );
+
+    const link =
+      document.createElement(
+        "a"
+      );
+    link.href =
+      objectUrl;
+    link.download =
+      ariaState
+        .documentAnalysis
+        .suggested_filename;
+    link.rel =
+      "noopener";
+    document.body.append(link);
+    link.click();
+    link.remove();
+
+    setState(
+      "idle",
+      "Copie renommée téléchargée.",
+      "Le document original n’a pas été modifié."
+    );
+  } catch (error) {
+    console.error(
+      "Renamed PDF download failed:",
+      error
+    );
+
+    setState(
+      "error",
+      "Téléchargement impossible.",
+      getReadableError(error)
+    );
+  } finally {
+    if (objectUrl) {
+      window.setTimeout(
+        () =>
+          URL.revokeObjectURL(
+            objectUrl
+          ),
+        1000
+      );
+    }
+
+    ariaState.documentDownloadBusy =
+      false;
+    updateDocumentAnalysisInterface();
+  }
+}
+
 function updateDocumentAnalysisInterface() {
   if (!domReady) return;
 
@@ -3699,6 +4907,15 @@ function updateDocumentAnalysisInterface() {
   );
   const detailsPanel = getElement(
     "document-details-panel"
+  );
+  const editorPanel = getElement(
+    "document-editor-panel"
+  );
+  const downloadButton = getElement(
+    "download-renamed-pdf-button"
+  );
+  const validationLabel = getElement(
+    "document-filename-validation"
   );
   const successBlock = getElement(
     "document-analysis-success"
@@ -3743,8 +4960,27 @@ function updateDocumentAnalysisInterface() {
         ? "Relancer l’analyse"
         : "Analyser et classer";
 
+  const filenameComplete =
+    Boolean(
+      analysis
+        ?.filename_complete
+    );
+
   copyButton.disabled =
-    !analysis?.suggested_filename;
+    !analysis?.suggested_filename ||
+    ariaState.documentEditorBusy;
+
+  downloadButton.disabled =
+    !filenameComplete ||
+    ariaState.documentEditorBusy ||
+    ariaState.documentDownloadBusy;
+
+  downloadButton.textContent =
+    ariaState.documentDownloadBusy
+      ? "Préparation du téléchargement…"
+      : filenameComplete
+        ? "Télécharger la copie renommée"
+        : "Compléter le nom avant téléchargement";
 
   setElementDisplayed(
     emptyState,
@@ -3834,9 +5070,11 @@ function updateDocumentAnalysisInterface() {
       "document-suggested-filename"
     ).textContent = "";
 
-    getElement(
-      "document-metadata-grid"
-    ).replaceChildren();
+    validationLabel.textContent =
+      "En attente de validation";
+    validationLabel.classList.remove(
+      "valid"
+    );
 
     getElement(
       "document-missing-block"
@@ -3851,6 +5089,8 @@ function updateDocumentAnalysisInterface() {
     ).hidden = true;
 
     detailsPanel.open = false;
+    editorPanel.open = false;
+    updateDocumentEditorInterface();
     updateDocumentAnalysisProgressInterface();
     return;
   }
@@ -3886,68 +5126,60 @@ function updateDocumentAnalysisInterface() {
     analysis.summary ||
     "Aucun résumé disponible.";
 
-  const metadata = analysis.metadata || {};
-  const grid = getElement(
-    "document-metadata-grid"
-  );
+  const metadata =
+    ariaState.documentEditorMetadata ||
+    analysis.metadata ||
+    {};
 
-  grid.replaceChildren(
-    createMetadataItem(
-      "Pôle",
-      metadata.pole
-    ),
-    createMetadataItem(
-      "Phase",
-      metadata.phase
-    ),
-    createMetadataItem(
-      "Site",
-      metadata.site
-    ),
-    createMetadataItem(
-      "Bloc",
-      metadata.bloc
-    ),
-    createMetadataItem(
-      "Étage",
-      metadata.etage
-    ),
-    createMetadataItem(
-      "Numéro",
-      metadata.numero
-    ),
-    createMetadataItem(
-      "Discipline",
-      metadata.discipline
-    ),
-    createMetadataItem(
-      "Technique",
-      metadata.technique
-    ),
-    createMetadataItem(
-      "Type",
-      metadata.effective_type ||
-        metadata.type_document
-    ),
-    createMetadataItem(
-      "Indice",
-      metadata.indice
-    ),
-    createMetadataItem(
-      "Date",
-      metadata.date
-    ),
-    createMetadataItem(
-      "Description",
-      metadata.description
-    )
-  );
+  if (
+    !ariaState
+      .documentEditorMetadata
+  ) {
+    ariaState.documentEditorMetadata = {
+      ...metadata
+    };
+  }
+
+  if (
+    !ariaState
+      .documentEditorReferences &&
+    !ariaState
+      .documentEditorLoadBusy
+  ) {
+    loadDocumentEditorReferences()
+      .then(() => {
+        renderDocumentEditorOptions();
+        syncDocumentEditorValues();
+        updateDocumentAnalysisInterface();
+      })
+      .catch((error) => {
+        console.warn(
+          "Chargement des références éditeur impossible.",
+          error
+        );
+      });
+  }
+
+  renderDocumentEditorOptions();
+  syncDocumentEditorValues();
 
   getElement(
     "document-suggested-filename"
   ).textContent =
     analysis.suggested_filename ||
     "Nom indisponible";
+
+  validationLabel.textContent =
+    analysis.filename_complete
+      ? "Nom complet · validation humaine requise avant téléchargement"
+      : "Nom incomplet · ouvre « Corriger les métadonnées »";
+
+  validationLabel.classList.toggle(
+    "valid",
+    Boolean(
+      analysis.filename_complete
+    )
+  );
 
   const missing =
     Array.isArray(
@@ -4039,10 +5271,10 @@ function updateDocumentAnalysisInterface() {
     "document-details-summary"
   ).textContent =
     controlCount > 0
-      ? `Métadonnées et contrôles · ${controlCount} point(s)`
-      : "Métadonnées détectées";
+      ? `Contrôles et preuves · ${controlCount} point(s)`
+      : "Contrôles et preuves";
 
-  detailsPanel.open = false;
+  updateDocumentEditorInterface();
   updateDocumentAnalysisProgressInterface();
 }
 
@@ -5203,7 +6435,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.1.4").replace(/^v/, "")}`;
+    `v${String(config.version || "1.2.0").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf
