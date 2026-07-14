@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v1.1</title>
+  <title>ARIA — v1.1.2</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
   <script src="config.js"></script>
@@ -17,7 +17,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v1.1</span>
+          <span id="version-label" class="version-badge">v1.1.2</span>
         </div>
       </div>
       <div class="header-status">
@@ -278,7 +278,105 @@
             Stockage privé temporaire
           </small>
         </div>
-        <div class="pdf-attachment-actions">
+      </div>
+
+      <section
+        id="document-analysis-card"
+        class="document-analysis-card compact-analysis"
+        hidden
+        aria-live="polite"
+      >
+        <div class="document-analysis-heading">
+          <div>
+            <p class="section-kicker">RENOMMAGE DOCUMENTAIRE</p>
+            <h2 id="document-analysis-title">Classement du PDF</h2>
+          </div>
+          <span
+            id="document-analysis-confidence"
+            class="document-confidence"
+            hidden
+          >
+            Confiance —
+          </span>
+        </div>
+
+        <div
+          id="document-analysis-empty"
+          class="document-analysis-empty"
+        >
+          <span>Le document est prêt.</span>
+          <small>
+            ARIA recherchera le pôle, la phase, le site, la discipline,
+            la technique, le type, l’indice et la date.
+          </small>
+        </div>
+
+        <div
+          id="document-analysis-content"
+          class="document-analysis-content"
+          hidden
+        >
+          <p
+            id="document-analysis-summary"
+            class="document-analysis-summary"
+          ></p>
+
+          <div class="document-filename-block compact-filename">
+            <div class="document-filename-copy">
+              <span>Nom proposé</span>
+              <code id="document-suggested-filename"></code>
+            </div>
+            <button
+              id="copy-document-filename-button"
+              class="compact"
+              type="button"
+            >
+              Copier
+            </button>
+          </div>
+
+          <details
+            id="document-details-panel"
+            class="document-details-panel"
+          >
+            <summary id="document-details-summary">
+              Voir les métadonnées et contrôles
+            </summary>
+
+            <div
+              id="document-metadata-grid"
+              class="document-metadata-grid"
+            ></div>
+
+            <div
+              id="document-missing-block"
+              class="document-feedback-block"
+              hidden
+            >
+              <strong>Champs à compléter</strong>
+              <ul id="document-missing-list"></ul>
+            </div>
+
+            <div
+              id="document-warning-block"
+              class="document-feedback-block warning"
+              hidden
+            >
+              <strong>Points d’attention</strong>
+              <ul id="document-warning-list"></ul>
+            </div>
+
+            <details
+              id="document-evidence-details"
+              class="document-evidence-details"
+            >
+              <summary>Voir les éléments détectés</summary>
+              <ul id="document-evidence-list"></ul>
+            </details>
+          </details>
+        </div>
+
+        <div class="document-analysis-actions">
           <button
             id="classify-pdf-button"
             class="compact"
@@ -291,86 +389,9 @@
             class="secondary compact"
             type="button"
           >
-            Retirer et supprimer
+            Retirer le document
           </button>
         </div>
-      </div>
-
-      <section
-        id="document-analysis-card"
-        class="document-analysis-card"
-        hidden
-        aria-live="polite"
-      >
-        <div class="document-analysis-heading">
-          <div>
-            <p class="section-kicker">CLASSEMENT DOCUMENTAIRE</p>
-            <h2 id="document-analysis-title">Analyse du PDF</h2>
-          </div>
-          <span
-            id="document-analysis-confidence"
-            class="document-confidence"
-          >
-            Confiance —
-          </span>
-        </div>
-
-        <p
-          id="document-analysis-summary"
-          class="document-analysis-summary"
-        ></p>
-
-        <div
-          id="document-metadata-grid"
-          class="document-metadata-grid"
-        ></div>
-
-        <div class="document-filename-block">
-          <span>Nom proposé</span>
-          <code id="document-suggested-filename"></code>
-          <div class="document-filename-actions">
-            <button
-              id="copy-document-filename-button"
-              class="compact"
-              type="button"
-            >
-              Copier le nom
-            </button>
-            <button
-              id="reanalyze-document-button"
-              class="secondary compact"
-              type="button"
-            >
-              Relancer l’analyse
-            </button>
-          </div>
-        </div>
-
-        <div
-          id="document-missing-block"
-          class="document-feedback-block"
-          hidden
-        >
-          <strong>Champs à compléter</strong>
-          <ul id="document-missing-list"></ul>
-        </div>
-
-        <div
-          id="document-warning-block"
-          class="document-feedback-block warning"
-          hidden
-        >
-          <strong>Points d’attention</strong>
-          <ul id="document-warning-list"></ul>
-        </div>
-
-        <details
-          id="document-evidence-details"
-          class="document-evidence-details"
-        >
-          <summary>Voir les éléments détectés</summary>
-          <ul id="document-evidence-list"></ul>
-        </details>
       </section>
 
       <div class="command-row">
@@ -416,7 +437,7 @@
         </div>
       </div>
       <p class="footer-technical">
-        ARIA Web v1.1 · BRAIN Knowledge · classement officiel
+        ARIA Web v1.1.2 · classement compact · ordre officiel
       </p>
       <p class="footer-safety">
         Validation humaine requise avant toute action métier.

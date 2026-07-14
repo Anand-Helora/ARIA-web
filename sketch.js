@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.1.0",
+  version: "1.1.2",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -202,10 +202,6 @@ function initializeInterface() {
     () => discardPendingPdf(true)
   );
   getElement("classify-pdf-button").addEventListener(
-    "click",
-    classifyPendingPdf
-  );
-  getElement("reanalyze-document-button").addEventListener(
     "click",
     classifyPendingPdf
   );
@@ -455,7 +451,7 @@ async function requestRemoteAria(image = null, pdf = null) {
           : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "1.1.0"
+          version: config.version || "1.1.2"
         }
       }),
       signal: controller.signal
@@ -3217,7 +3213,7 @@ async function requestDocumentClassification(
           client: {
             name: "ARIA-web",
             version:
-              config.version || "1.1.0"
+              config.version || "1.1.2"
           }
         }),
         signal: controller.signal
@@ -3404,52 +3400,102 @@ function fillStringList(
 function updateDocumentAnalysisInterface() {
   if (!domReady) return;
 
-  const analysis =
-    ariaState.documentAnalysis;
+  const pdf = ariaState.pendingPdf;
+  const analysis = ariaState.documentAnalysis;
+
   const card = getElement(
     "document-analysis-card"
+  );
+  const emptyState = getElement(
+    "document-analysis-empty"
+  );
+  const content = getElement(
+    "document-analysis-content"
+  );
+  const confidenceBadge = getElement(
+    "document-analysis-confidence"
   );
   const classifyButton = getElement(
     "classify-pdf-button"
   );
-  const reanalyzeButton = getElement(
-    "reanalyze-document-button"
+  const removeButton = getElement(
+    "remove-pdf-button"
   );
   const copyButton = getElement(
     "copy-document-filename-button"
   );
+  const detailsPanel = getElement(
+    "document-details-panel"
+  );
 
   const canClassify =
-    Boolean(ariaState.pendingPdf) &&
+    Boolean(pdf) &&
     Boolean(ariaState.accessToken) &&
     !ariaState.isBusy &&
     !ariaState.pdfBusy &&
     !ariaState.documentAnalysisBusy;
 
-  classifyButton.disabled =
-    !canClassify;
+  card.hidden = !pdf;
+
+  classifyButton.disabled = !canClassify;
+  removeButton.disabled =
+    !pdf ||
+    ariaState.isBusy ||
+    ariaState.pdfBusy ||
+    ariaState.documentAnalysisBusy;
+
   classifyButton.textContent =
     ariaState.documentAnalysisBusy
       ? "Analyse en cours…"
       : analysis
-        ? "Actualiser le classement"
+        ? "Relancer l’analyse"
         : "Analyser et classer";
 
-  reanalyzeButton.disabled =
-    !canClassify;
   copyButton.disabled =
     !analysis?.suggested_filename;
 
-  card.hidden = !analysis;
+  emptyState.hidden = Boolean(analysis);
+  content.hidden = !analysis;
+  confidenceBadge.hidden = !analysis;
 
-  if (!analysis) return;
+  if (!analysis) {
+    getElement(
+      "document-analysis-title"
+    ).textContent = "Classement du PDF";
+
+    getElement(
+      "document-analysis-summary"
+    ).textContent = "";
+
+    getElement(
+      "document-suggested-filename"
+    ).textContent = "";
+
+    getElement(
+      "document-metadata-grid"
+    ).replaceChildren();
+
+    getElement(
+      "document-missing-block"
+    ).hidden = true;
+
+    getElement(
+      "document-warning-block"
+    ).hidden = true;
+
+    getElement(
+      "document-evidence-details"
+    ).hidden = true;
+
+    detailsPanel.open = false;
+    return;
+  }
 
   const category =
     analysis.document_category || {};
-  const confidence =
-    Number(
-      analysis.overall_confidence
-    );
+  const confidence = Number(
+    analysis.overall_confidence
+  );
   const confidencePercent =
     Number.isFinite(confidence)
       ? Math.round(
@@ -3465,11 +3511,9 @@ function updateDocumentAnalysisInterface() {
   ).textContent =
     category.label ||
     category.code ||
-    "Analyse du PDF";
+    "Classement du PDF";
 
-  getElement(
-    "document-analysis-confidence"
-  ).textContent =
+  confidenceBadge.textContent =
     `Confiance ${confidencePercent} %`;
 
   getElement(
@@ -3478,8 +3522,7 @@ function updateDocumentAnalysisInterface() {
     analysis.summary ||
     "Aucun résumé disponible.";
 
-  const metadata =
-    analysis.metadata || {};
+  const metadata = analysis.metadata || {};
   const grid = getElement(
     "document-metadata-grid"
   );
@@ -3510,17 +3553,17 @@ function updateDocumentAnalysisInterface() {
       metadata.numero
     ),
     createMetadataItem(
-      "Type",
-      metadata.effective_type ||
-        metadata.type_document
-    ),
-    createMetadataItem(
       "Discipline",
       metadata.discipline
     ),
     createMetadataItem(
       "Technique",
       metadata.technique
+    ),
+    createMetadataItem(
+      "Type",
+      metadata.effective_type ||
+        metadata.type_document
     ),
     createMetadataItem(
       "Indice",
@@ -3548,11 +3591,13 @@ function updateDocumentAnalysisInterface() {
     )
       ? analysis.missing_fields
       : [];
+
   const missingBlock = getElement(
     "document-missing-block"
   );
   missingBlock.hidden =
     missing.length === 0;
+
   fillStringList(
     getElement(
       "document-missing-list"
@@ -3564,14 +3609,18 @@ function updateDocumentAnalysisInterface() {
   );
 
   const warnings =
-    Array.isArray(analysis.warnings)
+    Array.isArray(
+      analysis.warnings
+    )
       ? analysis.warnings
       : [];
+
   const warningBlock = getElement(
     "document-warning-block"
   );
   warningBlock.hidden =
     warnings.length === 0;
+
   fillStringList(
     getElement(
       "document-warning-list"
@@ -3580,15 +3629,18 @@ function updateDocumentAnalysisInterface() {
   );
 
   const evidence =
-    Array.isArray(analysis.evidence)
+    Array.isArray(
+      analysis.evidence
+    )
       ? analysis.evidence
       : [];
-  const evidenceDetails =
-    getElement(
-      "document-evidence-details"
-    );
+
+  const evidenceDetails = getElement(
+    "document-evidence-details"
+  );
   evidenceDetails.hidden =
     evidence.length === 0;
+
   fillStringList(
     getElement(
       "document-evidence-list"
@@ -3615,6 +3667,18 @@ function updateDocumentAnalysisInterface() {
       return `${source}${field}${value}${reason}`;
     }
   );
+
+  const controlCount =
+    missing.length + warnings.length;
+
+  getElement(
+    "document-details-summary"
+  ).textContent =
+    controlCount > 0
+      ? `Métadonnées et contrôles · ${controlCount} point(s)`
+      : "Métadonnées détectées";
+
+  detailsPanel.open = false;
 }
 
 async function writeClipboardText(
@@ -4720,7 +4784,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.1.0").replace(/^v/, "")}`;
+    `v${String(config.version || "1.1.2").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf
