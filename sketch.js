@@ -1,28 +1,35 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "0.9.0",
+  version: "1.1.0",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
   memoryApiUrl: "https://aria-core-kappa.vercel.app/api/memory",
   pdfApiUrl: "https://aria-core-kappa.vercel.app/api/pdf",
+  documentApiUrl: "https://aria-core-kappa.vercel.app/api/document",
+  knowledgeApiUrl: "https://aria-core-kappa.vercel.app/api/knowledge",
   requestTimeoutMs: 180000,
   speechRequestTimeoutMs: 45000,
   memoryRequestTimeoutMs: 30000,
   pdfRequestTimeoutMs: 30000,
   pdfUploadTimeoutMs: 300000,
+  documentRequestTimeoutMs: 180000,
+  knowledgeRequestTimeoutMs: 120000,
+  knowledgeUploadTimeoutMs: 300000,
   maxHistoryMessages: 20,
   maxImageDimension: 1440,
   maxImageDataUrlChars: 2500000,
   imageJpegQuality: 0.78,
   maxPdfBytes: 47185920,
+  maxKnowledgePackageBytes: 10485760,
   localStorageKey: "aria.web.conversation.v0.3",
   sessionTokenKey: "aria.web.access-token.session.v0.3",
   conversationVisibilityKey: "aria.web.conversation-visible.v0.6",
   textInputVisibilityKey: "aria.web.text-input-visible.v0.7.2",
   autoSpeakKey: "aria.web.voice-output-enabled.v0.8",
   pdfSessionKey: "aria.web.pending-pdf.session.v0.9",
+  documentAnalysisSessionKey: "aria.web.document-analysis.session.v1.0",
   speechRateKey: "aria.web.speech-rate.v0.6",
   speechVoiceKey: "aria.web.speech-voice.v0.6.1"
 };
@@ -57,10 +64,18 @@ const ariaState = {
   pendingPdf: null,
   pdfBusy: false,
   pdfUploadProgress: 0,
+  documentAnalysis: null,
+  documentAnalysisBusy: false,
   pendingMemory: null,
   savedMemories: [],
   memoryBusy: false,
-  memoryStorageConfigured: null
+  memoryStorageConfigured: null,
+  brainActiveTab: "memory",
+  knowledgeStatus: null,
+  knowledgeVersions: [],
+  knowledgePreview: null,
+  knowledgeBusy: false,
+  knowledgeUploadProgress: 0
 };
 
 const stateVisuals = {
@@ -186,6 +201,18 @@ function initializeInterface() {
     "click",
     () => discardPendingPdf(true)
   );
+  getElement("classify-pdf-button").addEventListener(
+    "click",
+    classifyPendingPdf
+  );
+  getElement("reanalyze-document-button").addEventListener(
+    "click",
+    classifyPendingPdf
+  );
+  getElement("copy-document-filename-button").addEventListener(
+    "click",
+    copySuggestedDocumentFilename
+  );
   getElement("capture-screen-button").addEventListener(
     "click",
     captureSharedScreen
@@ -207,6 +234,34 @@ function initializeInterface() {
   getElement("brain-dialog-close").addEventListener("click", closeBrainDialog);
   getElement("brain-dialog-done").addEventListener("click", closeBrainDialog);
   getElement("refresh-brain-button").addEventListener("click", loadBrainMemories);
+  getElement("brain-memory-tab").addEventListener(
+    "click",
+    () => setBrainTab("memory")
+  );
+  getElement("brain-knowledge-tab").addEventListener(
+    "click",
+    () => setBrainTab("knowledge")
+  );
+  getElement("refresh-knowledge-button").addEventListener(
+    "click",
+    loadKnowledgeStatus
+  );
+  getElement("import-knowledge-button").addEventListener(
+    "click",
+    openKnowledgePackagePicker
+  );
+  getElement("knowledge-package-input").addEventListener(
+    "change",
+    handleKnowledgePackageSelection
+  );
+  getElement("activate-knowledge-button").addEventListener(
+    "click",
+    activateKnowledgePreview
+  );
+  getElement("cancel-knowledge-preview-button").addEventListener(
+    "click",
+    clearKnowledgePreview
+  );
 
   getElement("access-form").addEventListener("submit", saveAccessToken);
   getElement("dialog-close").addEventListener("click", closeAccessDialog);
@@ -223,11 +278,22 @@ function initializeInterface() {
 
   loadVoiceSettings();
   loadPendingPdfSession();
+  loadDocumentAnalysisSession();
   loadHistory();
   initializeVoiceRecognition();
   initializeSpeechSynthesis();
   updateInterface();
   updateConnectionIndicator();
+
+  if (ariaState.accessToken) {
+    loadKnowledgeStatus().catch((error) => {
+      console.warn(
+        "Chargement initial de BRAIN Knowledge impossible.",
+        error
+      );
+    });
+  }
+
   getElement("command-input").focus();
 }
 
@@ -389,7 +455,7 @@ async function requestRemoteAria(image = null, pdf = null) {
           : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "0.9.0"
+          version: config.version || "1.1.0"
         }
       }),
       signal: controller.signal
@@ -508,6 +574,13 @@ function setAccessToken(token) {
 
   updateConnectionIndicator();
   updateTextInputVisibility();
+
+  loadKnowledgeStatus().catch((error) => {
+    console.warn(
+      "Chargement initial de BRAIN Knowledge impossible.",
+      error
+    );
+  });
 }
 
 function loadAccessToken() {
@@ -529,7 +602,12 @@ function clearAccessToken() {
   ariaState.pendingMemory = null;
   ariaState.savedMemories = [];
   ariaState.memoryStorageConfigured = null;
+  ariaState.knowledgeStatus = null;
+  ariaState.knowledgeVersions = [];
+  ariaState.knowledgePreview = null;
+  ariaState.knowledgeBusy = false;
   updateMemoryProposalCard();
+  updateKnowledgeInterface();
   ariaState.accessToken = "";
   try {
     sessionStorage.removeItem(config.sessionTokenKey);
@@ -676,6 +754,1138 @@ function updateTextInputVisibility() {
   }
 }
 
+
+
+function setBrainTab(tabName) {
+  const tab =
+    tabName === "knowledge"
+      ? "knowledge"
+      : "memory";
+
+  ariaState.brainActiveTab = tab;
+
+  const memoryTab =
+    getElement("brain-memory-tab");
+  const knowledgeTab =
+    getElement("brain-knowledge-tab");
+  const memoryPanel =
+    getElement("brain-memory-panel");
+  const knowledgePanel =
+    getElement("brain-knowledge-panel");
+
+  const memoryActive =
+    tab === "memory";
+
+  memoryTab.classList.toggle(
+    "active",
+    memoryActive
+  );
+  memoryTab.setAttribute(
+    "aria-selected",
+    String(memoryActive)
+  );
+  knowledgeTab.classList.toggle(
+    "active",
+    !memoryActive
+  );
+  knowledgeTab.setAttribute(
+    "aria-selected",
+    String(!memoryActive)
+  );
+
+  memoryPanel.hidden =
+    !memoryActive;
+  knowledgePanel.hidden =
+    memoryActive;
+}
+
+async function knowledgeApiRequest(
+  method,
+  body = null
+) {
+  const controller =
+    new AbortController();
+  const timeoutId =
+    window.setTimeout(
+      () => controller.abort(),
+      Number(
+        config.knowledgeRequestTimeoutMs
+      ) || 120000
+    );
+
+  try {
+    const response = await fetch(
+      config.knowledgeApiUrl,
+      {
+        method,
+        headers: {
+          "Content-Type":
+            "application/json",
+          "Authorization":
+            `Bearer ${ariaState.accessToken}`
+        },
+        body:
+          body
+            ? JSON.stringify(body)
+            : undefined,
+        signal:
+          controller.signal
+      }
+    );
+
+    const data = await response
+      .json()
+      .catch(() => ({}));
+
+    if (!response.ok) {
+      const validationErrors =
+        Array.isArray(
+          data?.validation?.errors
+        )
+          ? ` ${data.validation.errors.join(" ")}`
+          : "";
+
+      const error = new Error(
+        (
+          typeof data.error ===
+            "string" &&
+          data.error.trim()
+            ? data.error
+            : `BRAIN Knowledge a répondu avec le statut ${response.status}.`
+        ) + validationErrors
+      );
+
+      error.status =
+        response.status;
+      error.validation =
+        data.validation || null;
+      throw error;
+    }
+
+    return data;
+  } finally {
+    window.clearTimeout(
+      timeoutId
+    );
+  }
+}
+
+function isZipSignature(bytes) {
+  if (
+    !bytes ||
+    bytes.length < 4 ||
+    bytes[0] !== 0x50 ||
+    bytes[1] !== 0x4b
+  ) {
+    return false;
+  }
+
+  return (
+    (
+      bytes[2] === 0x03 &&
+      bytes[3] === 0x04
+    ) ||
+    (
+      bytes[2] === 0x05 &&
+      bytes[3] === 0x06
+    ) ||
+    (
+      bytes[2] === 0x07 &&
+      bytes[3] === 0x08
+    )
+  );
+}
+
+async function readZipSignature(
+  file
+) {
+  const buffer = await file
+    .slice(0, 4)
+    .arrayBuffer();
+
+  return new Uint8Array(
+    buffer
+  );
+}
+
+function uploadKnowledgePackage(
+  file,
+  uploadUrl,
+  onProgress
+) {
+  return new Promise(
+    (resolve, reject) => {
+      const request =
+        new XMLHttpRequest();
+
+      request.open(
+        "PUT",
+        uploadUrl,
+        true
+      );
+      request.timeout =
+        Number(
+          config.knowledgeUploadTimeoutMs
+        ) || 300000;
+      request.setRequestHeader(
+        "Content-Type",
+        "application/zip"
+      );
+
+      request.upload.addEventListener(
+        "progress",
+        (event) => {
+          if (
+            !event.lengthComputable
+          ) {
+            return;
+          }
+
+          const percent =
+            Math.max(
+              0,
+              Math.min(
+                100,
+                Math.round(
+                  (
+                    event.loaded /
+                    event.total
+                  ) * 100
+                )
+              )
+            );
+
+          onProgress(percent);
+        }
+      );
+
+      request.addEventListener(
+        "load",
+        () => {
+          if (
+            request.status >= 200 &&
+            request.status < 300
+          ) {
+            onProgress(100);
+            resolve();
+            return;
+          }
+
+          reject(
+            new Error(
+              `Le stockage privé a refusé le paquet (${request.status}).`
+            )
+          );
+        }
+      );
+
+      request.addEventListener(
+        "error",
+        () => {
+          reject(
+            new Error(
+              "La connexion au stockage privé BRAIN Knowledge a échoué."
+            )
+          );
+        }
+      );
+
+      request.addEventListener(
+        "timeout",
+        () => {
+          reject(
+            new Error(
+              "Le téléversement du paquet Knowledge a dépassé le délai autorisé."
+            )
+          );
+        }
+      );
+
+      request.send(file);
+    }
+  );
+}
+
+function openKnowledgePackagePicker() {
+  if (!ariaState.accessToken) {
+    openAccessDialog();
+    return;
+  }
+
+  if (ariaState.knowledgeBusy) {
+    return;
+  }
+
+  getElement(
+    "knowledge-package-input"
+  ).click();
+}
+
+function setKnowledgeUploadProgress(
+  percent,
+  title =
+    "Téléversement sécurisé"
+) {
+  const normalized =
+    Math.max(
+      0,
+      Math.min(
+        100,
+        Number(percent) || 0
+      )
+    );
+
+  ariaState.knowledgeUploadProgress =
+    normalized;
+
+  const container =
+    getElement(
+      "knowledge-upload-progress"
+    );
+  container.hidden =
+    !ariaState.knowledgeBusy;
+
+  getElement(
+    "knowledge-upload-title"
+  ).textContent = title;
+  getElement(
+    "knowledge-upload-percent"
+  ).textContent =
+    `${Math.round(normalized)} %`;
+  getElement(
+    "knowledge-upload-bar"
+  ).value = normalized;
+}
+
+async function discardKnowledgeImport(
+  preview
+) {
+  if (
+    !preview?.pathname ||
+    !ariaState.accessToken
+  ) {
+    return;
+  }
+
+  await knowledgeApiRequest(
+    "POST",
+    {
+      action:
+        "discard_import",
+      pathname:
+        preview.pathname
+    }
+  ).catch((error) => {
+    console.warn(
+      "Suppression du paquet temporaire impossible.",
+      error
+    );
+  });
+}
+
+async function clearKnowledgePreview(
+  options = {}
+) {
+  const preview =
+    ariaState.knowledgePreview;
+
+  ariaState.knowledgePreview =
+    null;
+  updateKnowledgeInterface();
+
+  if (
+    options.deleteRemote !== false
+  ) {
+    await discardKnowledgeImport(
+      preview
+    );
+  }
+}
+
+async function handleKnowledgePackageSelection(
+  event
+) {
+  const input =
+    event.currentTarget;
+  const [file] =
+    input.files || [];
+  input.value = "";
+
+  if (!file) return;
+
+  const maxBytes =
+    Number(
+      config.maxKnowledgePackageBytes
+    ) || 10 * 1024 * 1024;
+
+  if (
+    !file.name
+      .toLowerCase()
+      .endsWith(".zip") ||
+    file.size <= 0 ||
+    file.size > maxBytes
+  ) {
+    setState(
+      "error",
+      "Paquet Knowledge non autorisé.",
+      file.size > maxBytes
+        ? "Le paquet doit faire moins de 10 Mo."
+        : "Choisis l’archive ZIP BRAIN Knowledge active."
+    );
+    return;
+  }
+
+  ariaState.knowledgeBusy =
+    true;
+  ariaState.knowledgeUploadProgress =
+    0;
+  updateKnowledgeInterface();
+  setKnowledgeUploadProgress(
+    0,
+    "Contrôle du paquet"
+  );
+
+  let preparedUpload = null;
+
+  try {
+    const signature =
+      await readZipSignature(file);
+
+    if (
+      !isZipSignature(signature)
+    ) {
+      throw new Error(
+        "Le fichier sélectionné n’est pas une archive ZIP valide."
+      );
+    }
+
+    await clearKnowledgePreview();
+
+    setState(
+      "thinking",
+      "Préparation de l’import Knowledge…",
+      "ARIA crée une autorisation d’upload privée et temporaire."
+    );
+
+    const prepared =
+      await knowledgeApiRequest(
+        "POST",
+        {
+          action:
+            "prepare_upload",
+          name:
+            file.name,
+          size:
+            file.size,
+          mimeType:
+            "application/zip"
+        }
+      );
+
+    preparedUpload =
+      prepared.upload;
+
+    if (
+      !preparedUpload?.uploadUrl ||
+      !preparedUpload?.pathname
+    ) {
+      throw new Error(
+        "ARIA Core n’a pas renvoyé d’autorisation d’upload exploitable."
+      );
+    }
+
+    setKnowledgeUploadProgress(
+      0,
+      "Téléversement sécurisé"
+    );
+
+    await uploadKnowledgePackage(
+      file,
+      preparedUpload.uploadUrl,
+      (percent) => {
+        setKnowledgeUploadProgress(
+          percent,
+          "Téléversement sécurisé"
+        );
+        setState(
+          "thinking",
+          `Import Knowledge : ${percent} %`,
+          "Le paquet va directement vers le stockage privé Vercel."
+        );
+      }
+    );
+
+    setKnowledgeUploadProgress(
+      100,
+      "Validation du manifest"
+    );
+
+    const previewResponse =
+      await knowledgeApiRequest(
+        "POST",
+        {
+          action: "preview",
+          pathname:
+            preparedUpload.pathname,
+          name:
+            preparedUpload.name ||
+            file.name,
+          size:
+            preparedUpload.size ||
+            file.size
+        }
+      );
+
+    ariaState.knowledgePreview = {
+      ...previewResponse.preview,
+      name:
+        preparedUpload.name ||
+        file.name,
+      size:
+        preparedUpload.size ||
+        file.size
+    };
+
+    setState(
+      "idle",
+      "Paquet Knowledge contrôlé.",
+      "Vérifie la version et les modules avant l’activation."
+    );
+
+    setBrainTab(
+      "knowledge"
+    );
+    updateKnowledgeInterface();
+  } catch (error) {
+    console.error(
+      "Knowledge import preview failed:",
+      error
+    );
+
+    if (
+      preparedUpload?.pathname
+    ) {
+      await discardKnowledgeImport({
+        pathname:
+          preparedUpload.pathname
+      });
+    }
+
+    setState(
+      "error",
+      "Import Knowledge impossible.",
+      getReadableError(error)
+    );
+  } finally {
+    ariaState.knowledgeBusy =
+      false;
+    ariaState.knowledgeUploadProgress =
+      0;
+    updateKnowledgeInterface();
+  }
+}
+
+async function activateKnowledgePreview() {
+  const preview =
+    ariaState.knowledgePreview;
+
+  if (
+    !preview ||
+    ariaState.knowledgeBusy
+  ) {
+    return;
+  }
+
+  const confirmed =
+    window.confirm(
+      [
+        `Activer BRAIN Knowledge v${preview.packageVersion} ?`,
+        "",
+        `${preview.moduleCount} module(s) seront utilisés comme référentiels officiels.`,
+        "La version actuellement active restera disponible dans l’historique."
+      ].join("\n")
+    );
+
+  if (!confirmed) return;
+
+  ariaState.knowledgeBusy =
+    true;
+  updateKnowledgeInterface();
+
+  setState(
+    "thinking",
+    "Activation de BRAIN Knowledge…",
+    "ARIA publie les modules puis met à jour le pointeur actif."
+  );
+
+  try {
+    const result =
+      await knowledgeApiRequest(
+        "POST",
+        {
+          action:
+            "activate_import",
+          pathname:
+            preview.pathname,
+          name:
+            preview.name,
+          size:
+            preview.size,
+          packageSha256:
+            preview.packageSha256
+        }
+      );
+
+    ariaState.knowledgeStatus =
+      result.status || null;
+    ariaState.knowledgeVersions =
+      Array.isArray(
+        result.status?.versions
+      )
+        ? result.status.versions
+        : [];
+    ariaState.knowledgePreview =
+      null;
+
+    const activatedVersion =
+      result.active?.version ||
+      preview.packageVersion;
+
+    getElement(
+      "knowledge-dialog-status"
+    ).textContent =
+      `Version officielle active : ${activatedVersion}.`;
+
+    setState(
+      "idle",
+      `BRAIN Knowledge v${activatedVersion} activé.`,
+      "Les référentiels officiels ont maintenant priorité dans ARIA."
+    );
+
+    updateBrainIndicator();
+  } catch (error) {
+    console.error(
+      "Knowledge activation failed:",
+      error
+    );
+
+    setState(
+      "error",
+      "Activation Knowledge impossible.",
+      getReadableError(error)
+    );
+  } finally {
+    ariaState.knowledgeBusy =
+      false;
+    updateKnowledgeInterface();
+  }
+}
+
+async function activateStoredKnowledgeVersion(
+  version
+) {
+  if (
+    !version ||
+    ariaState.knowledgeBusy
+  ) {
+    return;
+  }
+
+  const activeVersion =
+    ariaState.knowledgeStatus
+      ?.active?.version;
+
+  if (version === activeVersion) {
+    return;
+  }
+
+  if (
+    !window.confirm(
+      `Réactiver BRAIN Knowledge v${version} ?`
+    )
+  ) {
+    return;
+  }
+
+  ariaState.knowledgeBusy =
+    true;
+  updateKnowledgeInterface();
+
+  try {
+    const result =
+      await knowledgeApiRequest(
+        "POST",
+        {
+          action:
+            "activate_version",
+          version
+        }
+      );
+
+    ariaState.knowledgeStatus =
+      result.status || null;
+    ariaState.knowledgeVersions =
+      Array.isArray(
+        result.status?.versions
+      )
+        ? result.status.versions
+        : [];
+
+    getElement(
+      "knowledge-dialog-status"
+    ).textContent =
+      `Version officielle active : ${version}.`;
+
+    setState(
+      "idle",
+      `BRAIN Knowledge v${version} réactivé.`,
+      "Le changement de version est immédiatement appliqué."
+    );
+
+    updateBrainIndicator();
+  } catch (error) {
+    setState(
+      "error",
+      "Retour de version impossible.",
+      getReadableError(error)
+    );
+  } finally {
+    ariaState.knowledgeBusy =
+      false;
+    updateKnowledgeInterface();
+  }
+}
+
+async function loadKnowledgeStatus() {
+  const statusElement =
+    getElement(
+      "knowledge-dialog-status"
+    );
+
+  statusElement.textContent =
+    "Chargement de BRAIN Knowledge…";
+
+  try {
+    const data =
+      await knowledgeApiRequest(
+        "GET"
+      );
+
+    ariaState.knowledgeStatus =
+      data.status || null;
+    ariaState.knowledgeVersions =
+      Array.isArray(
+        data.status?.versions
+      )
+        ? data.status.versions
+        : [];
+
+    statusElement.textContent =
+      data.status?.active
+        ? `Version officielle active : ${data.status.active.version}.`
+        : "Aucune version officielle n’est encore active.";
+
+    updateKnowledgeInterface();
+    updateBrainIndicator();
+  } catch (error) {
+    console.error(
+      "Unable to load BRAIN Knowledge:",
+      error
+    );
+
+    statusElement.textContent =
+      getReadableError(error);
+    ariaState.knowledgeStatus =
+      null;
+    ariaState.knowledgeVersions =
+      [];
+    updateKnowledgeInterface();
+  }
+}
+
+function createKnowledgeModuleCard(
+  module
+) {
+  const article =
+    document.createElement(
+      "article"
+    );
+  article.className =
+    "knowledge-module-item";
+
+  const title =
+    document.createElement(
+      "strong"
+    );
+  title.textContent =
+    module.title ||
+    module.moduleId ||
+    "Module";
+
+  const count =
+    document.createElement(
+      "span"
+    );
+  const recordCount =
+    Number(
+      module.recordCount
+    ) || 0;
+  count.textContent =
+    `${recordCount} enregistrement${recordCount > 1 ? "s" : ""}`;
+
+  article.append(
+    title,
+    count
+  );
+
+  return article;
+}
+
+function renderKnowledgeModules(
+  container,
+  modules
+) {
+  container.replaceChildren();
+
+  if (
+    !Array.isArray(modules) ||
+    modules.length === 0
+  ) {
+    const empty =
+      document.createElement(
+        "p"
+      );
+    empty.className =
+      "knowledge-empty-state";
+    empty.textContent =
+      "Aucun module disponible.";
+    container.append(empty);
+    return;
+  }
+
+  for (const module of modules) {
+    container.append(
+      createKnowledgeModuleCard(
+        module
+      )
+    );
+  }
+}
+
+function renderKnowledgeVersions() {
+  const listElement =
+    getElement(
+      "knowledge-version-list"
+    );
+  listElement.replaceChildren();
+
+  const versions =
+    ariaState.knowledgeVersions;
+  const activeVersion =
+    ariaState.knowledgeStatus
+      ?.active?.version;
+
+  if (!versions.length) {
+    const empty =
+      document.createElement(
+        "p"
+      );
+    empty.className =
+      "knowledge-empty-state";
+    empty.textContent =
+      "Aucune version archivée.";
+    listElement.append(empty);
+    return;
+  }
+
+  for (const version of versions) {
+    const article =
+      document.createElement(
+        "article"
+      );
+    article.className =
+      "knowledge-version-item";
+
+    const copy =
+      document.createElement(
+        "div"
+      );
+
+    const heading =
+      document.createElement(
+        "div"
+      );
+    heading.className =
+      "knowledge-version-item-heading";
+
+    const title =
+      document.createElement(
+        "strong"
+      );
+    title.textContent =
+      `Version ${version.version}`;
+
+    const badge =
+      document.createElement(
+        "span"
+      );
+    const isActive =
+      version.version ===
+      activeVersion;
+    badge.className =
+      "knowledge-status-badge";
+    badge.classList.toggle(
+      "active",
+      isActive
+    );
+    badge.textContent =
+      isActive
+        ? "Active"
+        : "Disponible";
+
+    heading.append(
+      title,
+      badge
+    );
+
+    const metadata =
+      document.createElement(
+        "p"
+      );
+    metadata.textContent = [
+      `${Number(version.moduleCount) || 0} module(s)`,
+      version.importedAt
+        ? new Intl.DateTimeFormat(
+            "fr-BE",
+            {
+              dateStyle:
+                "medium",
+              timeStyle:
+                "short"
+            }
+          ).format(
+            new Date(
+              version.importedAt
+            )
+          )
+        : "date inconnue"
+    ].join(" · ");
+
+    copy.append(
+      heading,
+      metadata
+    );
+
+    const button =
+      document.createElement(
+        "button"
+      );
+    button.type = "button";
+    button.className =
+      isActive
+        ? "secondary compact"
+        : "compact";
+    button.textContent =
+      isActive
+        ? "Version active"
+        : "Réactiver";
+    button.disabled =
+      isActive ||
+      ariaState.knowledgeBusy;
+    button.addEventListener(
+      "click",
+      () =>
+        activateStoredKnowledgeVersion(
+          version.version
+        )
+    );
+
+    article.append(
+      copy,
+      button
+    );
+    listElement.append(
+      article
+    );
+  }
+}
+
+function updateKnowledgeInterface() {
+  if (!domReady) return;
+
+  const status =
+    ariaState.knowledgeStatus;
+  const active =
+    status?.active || null;
+  const preview =
+    ariaState.knowledgePreview;
+  const busy =
+    ariaState.knowledgeBusy;
+
+  const activeVersion =
+    getElement(
+      "knowledge-active-version"
+    );
+  const activeBadge =
+    getElement(
+      "knowledge-active-badge"
+    );
+  const activeMeta =
+    getElement(
+      "knowledge-active-meta"
+    );
+
+  activeVersion.textContent =
+    active
+      ? `v${active.version}`
+      : "Aucune version";
+
+  activeBadge.textContent =
+    active
+      ? "Active"
+      : status
+        ? "En attente"
+        : "Non chargée";
+  activeBadge.classList.toggle(
+    "active",
+    Boolean(active)
+  );
+
+  activeMeta.textContent =
+    active
+      ? [
+          active.validatedAt
+            ? `Validée le ${active.validatedAt}`
+            : "Date de validation inconnue",
+          active.validatedBy ||
+            "Validateur non renseigné",
+          active.activatedAt
+            ? `Activée le ${new Intl.DateTimeFormat(
+                "fr-BE",
+                {
+                  dateStyle:
+                    "medium",
+                  timeStyle:
+                    "short"
+                }
+              ).format(
+                new Date(
+                  active.activatedAt
+                )
+              )}`
+            : ""
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : "Importe le paquet ARIA BRAIN Knowledge actif.";
+
+  renderKnowledgeModules(
+    getElement(
+      "knowledge-active-modules"
+    ),
+    active?.modules || []
+  );
+
+  getElement(
+    "import-knowledge-button"
+  ).disabled =
+    busy ||
+    !ariaState.accessToken;
+  getElement(
+    "refresh-knowledge-button"
+  ).disabled = busy;
+
+  const progress =
+    getElement(
+      "knowledge-upload-progress"
+    );
+  progress.hidden = !busy;
+
+  const previewCard =
+    getElement(
+      "knowledge-preview-card"
+    );
+  previewCard.hidden = !preview;
+
+  if (preview) {
+    getElement(
+      "knowledge-preview-version"
+    ).textContent =
+      `Version ${preview.packageVersion}`;
+    getElement(
+      "knowledge-preview-badge"
+    ).textContent =
+      preview.valid
+        ? "Valide"
+        : "Invalide";
+    getElement(
+      "knowledge-preview-badge"
+    ).classList.toggle(
+      "active",
+      Boolean(preview.valid)
+    );
+
+    getElement(
+      "knowledge-preview-meta"
+    ).textContent = [
+      preview.sourceName,
+      formatFileSize(
+        preview.size
+      ),
+      `${preview.moduleCount} module(s)`,
+      preview.validatedAt
+        ? `validé le ${preview.validatedAt}`
+        : "",
+      preview.validatedBy ||
+        ""
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
+    renderKnowledgeModules(
+      getElement(
+        "knowledge-preview-modules"
+      ),
+      preview.modules || []
+    );
+
+    const warningList =
+      getElement(
+        "knowledge-preview-warnings"
+      );
+    warningList.replaceChildren();
+
+    for (
+      const warning
+      of preview.warnings || []
+    ) {
+      const item =
+        document.createElement(
+          "li"
+        );
+      item.textContent =
+        warning;
+      warningList.append(
+        item
+      );
+    }
+
+    warningList.hidden =
+      warningList.children
+        .length === 0;
+  }
+
+  getElement(
+    "activate-knowledge-button"
+  ).disabled =
+    busy ||
+    !preview?.valid;
+  getElement(
+    "cancel-knowledge-preview-button"
+  ).disabled = busy;
+
+  renderKnowledgeVersions();
+}
 
 function getMemoryCategoryLabel(category) {
   const labels = {
@@ -887,13 +2097,37 @@ function dismissPendingMemory(options = {}) {
 function updateBrainIndicator() {
   if (!domReady) return;
 
-  const indicator = getElement("brain-indicator");
-  const connected = Boolean(ariaState.accessToken);
+  const indicator =
+    getElement("brain-indicator");
+  const connected =
+    Boolean(ariaState.accessToken);
+  const memoryCount =
+    ariaState.savedMemories.length;
+  const knowledgeVersion =
+    ariaState.knowledgeStatus
+      ?.active?.version;
 
-  indicator.disabled = !connected;
-  indicator.textContent = ariaState.savedMemories.length
-    ? `BRAIN · ${ariaState.savedMemories.length}`
-    : "BRAIN";
+  indicator.disabled =
+    !connected;
+
+  const parts = ["BRAIN"];
+
+  if (memoryCount > 0) {
+    parts.push(`M${memoryCount}`);
+  }
+
+  if (knowledgeVersion) {
+    parts.push(
+      `K${knowledgeVersion}`
+    );
+  }
+
+  indicator.textContent =
+    parts.join(" · ");
+  indicator.title =
+    knowledgeVersion
+      ? `BRAIN Knowledge v${knowledgeVersion} actif`
+      : "Consulter BRAIN";
 }
 
 async function openBrainDialog() {
@@ -908,7 +2142,14 @@ async function openBrainDialog() {
     dialog.showModal();
   }
 
-  await loadBrainMemories();
+  setBrainTab(
+    ariaState.brainActiveTab
+  );
+
+  await Promise.allSettled([
+    loadBrainMemories(),
+    loadKnowledgeStatus()
+  ]);
 }
 
 function closeBrainDialog() {
@@ -1867,6 +3108,578 @@ function updateVoiceInterface() {
 
 
 
+
+function saveDocumentAnalysisSession() {
+  try {
+    if (
+      ariaState.documentAnalysis &&
+      ariaState.pendingPdf
+    ) {
+      sessionStorage.setItem(
+        config.documentAnalysisSessionKey,
+        JSON.stringify({
+          pathname:
+            ariaState.pendingPdf.pathname,
+          analysis:
+            ariaState.documentAnalysis
+        })
+      );
+    } else {
+      sessionStorage.removeItem(
+        config.documentAnalysisSessionKey
+      );
+    }
+  } catch (error) {
+    console.warn(
+      "Impossible de mémoriser le classement documentaire.",
+      error
+    );
+  }
+}
+
+function loadDocumentAnalysisSession() {
+  try {
+    const raw = sessionStorage.getItem(
+      config.documentAnalysisSessionKey
+    );
+
+    if (
+      !raw ||
+      !ariaState.pendingPdf
+    ) {
+      return;
+    }
+
+    const parsed = JSON.parse(raw);
+
+    if (
+      parsed?.pathname ===
+        ariaState.pendingPdf.pathname &&
+      parsed?.analysis &&
+      typeof parsed.analysis ===
+        "object"
+    ) {
+      ariaState.documentAnalysis =
+        parsed.analysis;
+    }
+  } catch (error) {
+    console.warn(
+      "Classement documentaire de session invalide.",
+      error
+    );
+    clearDocumentAnalysis(false);
+  }
+}
+
+function clearDocumentAnalysis(
+  updateInterface = true
+) {
+  ariaState.documentAnalysis = null;
+  saveDocumentAnalysisSession();
+
+  if (updateInterface && domReady) {
+    updateDocumentAnalysisInterface();
+  }
+}
+
+async function requestDocumentClassification(
+  pdf
+) {
+  const controller =
+    new AbortController();
+  const timeoutId =
+    window.setTimeout(
+      () => controller.abort(),
+      Number(
+        config.documentRequestTimeoutMs
+      ) || 180000
+    );
+
+  try {
+    const response = await fetch(
+      config.documentApiUrl,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+          "Authorization":
+            `Bearer ${ariaState.accessToken}`
+        },
+        body: JSON.stringify({
+          pdf: {
+            pathname: pdf.pathname,
+            name: pdf.name,
+            size: pdf.size,
+            detail:
+              pdf.detail || "auto"
+          },
+          client: {
+            name: "ARIA-web",
+            version:
+              config.version || "1.1.0"
+          }
+        }),
+        signal: controller.signal
+      }
+    );
+
+    const data = await response
+      .json()
+      .catch(() => ({}));
+
+    if (!response.ok) {
+      const error = new Error(
+        typeof data.error ===
+          "string" &&
+        data.error.trim()
+          ? data.error
+          : `Le classement a répondu avec le statut ${response.status}.`
+      );
+      error.status = response.status;
+      error.requestId =
+        data.requestId || null;
+      throw error;
+    }
+
+    if (
+      !data.classification ||
+      typeof data.classification !==
+        "object"
+    ) {
+      throw new Error(
+        "ARIA Core n’a renvoyé aucun classement exploitable."
+      );
+    }
+
+    return data.classification;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function classifyPendingPdf() {
+  if (
+    ariaState.documentAnalysisBusy ||
+    ariaState.isBusy
+  ) {
+    return;
+  }
+
+  const pdf = ariaState.pendingPdf;
+
+  if (!pdf) {
+    setState(
+      "error",
+      "Aucun PDF actif.",
+      "Ajoute un PDF avant de lancer le classement."
+    );
+    return;
+  }
+
+  if (!ariaState.accessToken) {
+    setState(
+      "idle",
+      "Connexion requise.",
+      "Connecte ARIA Core avant de classer le PDF."
+    );
+    openAccessDialog();
+    return;
+  }
+
+  ariaState.documentAnalysisBusy = true;
+  updateDocumentAnalysisInterface();
+  updatePdfAttachmentInterface();
+
+  setState(
+    "thinking",
+    "Classement du document…",
+    "ARIA analyse les pages et recherche les métadonnées de nommage."
+  );
+
+  try {
+    const classification =
+      await requestDocumentClassification(
+        pdf
+      );
+
+    ariaState.documentAnalysis =
+      classification;
+    saveDocumentAnalysisSession();
+    updateDocumentAnalysisInterface();
+
+    const missingCount =
+      Array.isArray(
+        classification.missing_fields
+      )
+        ? classification
+            .missing_fields
+            .length
+        : 0;
+
+    setState(
+      "idle",
+      "Classement terminé.",
+      missingCount > 0
+        ? `${missingCount} champ(s) restent à compléter.`
+        : "Le nom proposé contient tous les champs requis."
+    );
+
+    getElement(
+      "document-analysis-card"
+    ).scrollIntoView({
+      behavior: "smooth",
+      block: "nearest"
+    });
+  } catch (error) {
+    console.error(
+      "Document classification failed:",
+      error
+    );
+
+    if (error.status === 401) {
+      clearAccessToken();
+      openAccessDialog();
+    }
+
+    setState(
+      "error",
+      "Classement impossible.",
+      getReadableError(error)
+    );
+  } finally {
+    ariaState.documentAnalysisBusy =
+      false;
+    updateDocumentAnalysisInterface();
+    updatePdfAttachmentInterface();
+  }
+}
+
+function createMetadataItem(
+  label,
+  value
+) {
+  const item =
+    document.createElement("div");
+  item.className =
+    "document-metadata-item";
+
+  const key =
+    document.createElement("span");
+  key.textContent = label;
+
+  const content =
+    document.createElement("strong");
+  content.textContent =
+    value || "Non détecté";
+  content.classList.toggle(
+    "missing",
+    !value
+  );
+
+  item.append(
+    key,
+    content
+  );
+
+  return item;
+}
+
+function fillStringList(
+  listElement,
+  values,
+  formatter = (value) => value
+) {
+  listElement.replaceChildren();
+
+  for (const value of values) {
+    const item =
+      document.createElement("li");
+    item.textContent =
+      formatter(value);
+    listElement.append(item);
+  }
+}
+
+function updateDocumentAnalysisInterface() {
+  if (!domReady) return;
+
+  const analysis =
+    ariaState.documentAnalysis;
+  const card = getElement(
+    "document-analysis-card"
+  );
+  const classifyButton = getElement(
+    "classify-pdf-button"
+  );
+  const reanalyzeButton = getElement(
+    "reanalyze-document-button"
+  );
+  const copyButton = getElement(
+    "copy-document-filename-button"
+  );
+
+  const canClassify =
+    Boolean(ariaState.pendingPdf) &&
+    Boolean(ariaState.accessToken) &&
+    !ariaState.isBusy &&
+    !ariaState.pdfBusy &&
+    !ariaState.documentAnalysisBusy;
+
+  classifyButton.disabled =
+    !canClassify;
+  classifyButton.textContent =
+    ariaState.documentAnalysisBusy
+      ? "Analyse en cours…"
+      : analysis
+        ? "Actualiser le classement"
+        : "Analyser et classer";
+
+  reanalyzeButton.disabled =
+    !canClassify;
+  copyButton.disabled =
+    !analysis?.suggested_filename;
+
+  card.hidden = !analysis;
+
+  if (!analysis) return;
+
+  const category =
+    analysis.document_category || {};
+  const confidence =
+    Number(
+      analysis.overall_confidence
+    );
+  const confidencePercent =
+    Number.isFinite(confidence)
+      ? Math.round(
+          Math.max(
+            0,
+            Math.min(1, confidence)
+          ) * 100
+        )
+      : 0;
+
+  getElement(
+    "document-analysis-title"
+  ).textContent =
+    category.label ||
+    category.code ||
+    "Analyse du PDF";
+
+  getElement(
+    "document-analysis-confidence"
+  ).textContent =
+    `Confiance ${confidencePercent} %`;
+
+  getElement(
+    "document-analysis-summary"
+  ).textContent =
+    analysis.summary ||
+    "Aucun résumé disponible.";
+
+  const metadata =
+    analysis.metadata || {};
+  const grid = getElement(
+    "document-metadata-grid"
+  );
+
+  grid.replaceChildren(
+    createMetadataItem(
+      "Pôle",
+      metadata.pole
+    ),
+    createMetadataItem(
+      "Phase",
+      metadata.phase
+    ),
+    createMetadataItem(
+      "Site",
+      metadata.site
+    ),
+    createMetadataItem(
+      "Bloc",
+      metadata.bloc
+    ),
+    createMetadataItem(
+      "Étage",
+      metadata.etage
+    ),
+    createMetadataItem(
+      "Numéro",
+      metadata.numero
+    ),
+    createMetadataItem(
+      "Type",
+      metadata.effective_type ||
+        metadata.type_document
+    ),
+    createMetadataItem(
+      "Discipline",
+      metadata.discipline
+    ),
+    createMetadataItem(
+      "Technique",
+      metadata.technique
+    ),
+    createMetadataItem(
+      "Indice",
+      metadata.indice
+    ),
+    createMetadataItem(
+      "Date",
+      metadata.date
+    ),
+    createMetadataItem(
+      "Description",
+      metadata.description
+    )
+  );
+
+  getElement(
+    "document-suggested-filename"
+  ).textContent =
+    analysis.suggested_filename ||
+    "Nom indisponible";
+
+  const missing =
+    Array.isArray(
+      analysis.missing_fields
+    )
+      ? analysis.missing_fields
+      : [];
+  const missingBlock = getElement(
+    "document-missing-block"
+  );
+  missingBlock.hidden =
+    missing.length === 0;
+  fillStringList(
+    getElement(
+      "document-missing-list"
+    ),
+    missing,
+    (field) =>
+      String(field)
+        .replaceAll("_", " ")
+  );
+
+  const warnings =
+    Array.isArray(analysis.warnings)
+      ? analysis.warnings
+      : [];
+  const warningBlock = getElement(
+    "document-warning-block"
+  );
+  warningBlock.hidden =
+    warnings.length === 0;
+  fillStringList(
+    getElement(
+      "document-warning-list"
+    ),
+    warnings
+  );
+
+  const evidence =
+    Array.isArray(analysis.evidence)
+      ? analysis.evidence
+      : [];
+  const evidenceDetails =
+    getElement(
+      "document-evidence-details"
+    );
+  evidenceDetails.hidden =
+    evidence.length === 0;
+  fillStringList(
+    getElement(
+      "document-evidence-list"
+    ),
+    evidence,
+    (item) => {
+      const source =
+        Number(item?.page) === 0
+          ? "Nom du fichier"
+          : `Page ${item?.page}`;
+      const field =
+        item?.field
+          ? ` · ${item.field}`
+          : "";
+      const value =
+        item?.value
+          ? ` : ${item.value}`
+          : "";
+      const reason =
+        item?.reason
+          ? ` — ${item.reason}`
+          : "";
+
+      return `${source}${field}${value}${reason}`;
+    }
+  );
+}
+
+async function writeClipboardText(
+  value
+) {
+  if (
+    navigator.clipboard &&
+    window.isSecureContext
+  ) {
+    await navigator.clipboard.writeText(
+      value
+    );
+    return;
+  }
+
+  const textarea =
+    document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute(
+    "readonly",
+    ""
+  );
+  textarea.style.position =
+    "fixed";
+  textarea.style.opacity =
+    "0";
+  document.body.append(textarea);
+  textarea.select();
+
+  const copied =
+    document.execCommand("copy");
+  textarea.remove();
+
+  if (!copied) {
+    throw new Error(
+      "Le navigateur a refusé l’accès au presse-papiers."
+    );
+  }
+}
+
+async function copySuggestedDocumentFilename() {
+  const filename =
+    ariaState.documentAnalysis
+      ?.suggested_filename;
+
+  if (!filename) return;
+
+  try {
+    await writeClipboardText(
+      filename
+    );
+    setState(
+      "idle",
+      "Nom copié.",
+      "Le nom proposé est disponible dans le presse-papiers."
+    );
+  } catch (error) {
+    setState(
+      "error",
+      "Copie impossible.",
+      getReadableError(error)
+    );
+  }
+}
+
 function savePendingPdfSession() {
   try {
     if (ariaState.pendingPdf) {
@@ -2092,9 +3905,11 @@ async function handlePdfFileSelection(event) {
     return;
   }
 
+  clearDocumentAnalysis(false);
   ariaState.pdfBusy = true;
   ariaState.pdfUploadProgress = 0;
   updatePdfAttachmentInterface();
+  updateDocumentAnalysisInterface();
 
   let preparedUpload = null;
 
@@ -2212,8 +4027,10 @@ async function handlePdfFileSelection(event) {
 function clearPendingPdfLocal() {
   ariaState.pendingPdf = null;
   ariaState.pdfUploadProgress = 0;
+  clearDocumentAnalysis(false);
   savePendingPdfSession();
   updatePdfAttachmentInterface();
+  updateDocumentAnalysisInterface();
 }
 
 async function discardPendingPdf(
@@ -2285,6 +4102,7 @@ function updatePdfAttachmentInterface() {
       ariaState.pdfBusy
         ? `Téléversement : ${ariaState.pdfUploadProgress} %`
         : "Stockage privé temporaire";
+    updateDocumentAnalysisInterface();
     return;
   }
 
@@ -2298,7 +4116,11 @@ function updatePdfAttachmentInterface() {
   getElement(
     "pdf-attachment-status"
   ).textContent =
-    "Actif pour les prochaines questions · suppression au retrait";
+    ariaState.documentAnalysis
+      ? "PDF actif · classement disponible ci-dessous"
+      : "Actif pour les prochaines questions · suppression au retrait";
+
+  updateDocumentAnalysisInterface();
 }
 
 function approximateDataUrlBytes(dataUrl) {
@@ -2882,6 +4704,7 @@ function setBusy(isBusy) {
   updateVoiceInterface();
   updateImageAttachmentInterface();
   updatePdfAttachmentInterface();
+  updateKnowledgeInterface();
 }
 
 function setState(mode, message, detail) {
@@ -2897,7 +4720,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "0.9.0").replace(/^v/, "")}`;
+    `v${String(config.version || "1.1.0").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf
@@ -2921,7 +4744,9 @@ function updateInterface() {
   updateVoiceOutputIndicator();
   updateImageAttachmentInterface();
   updatePdfAttachmentInterface();
+  updateDocumentAnalysisInterface();
   updateMemoryProposalCard();
+  updateKnowledgeInterface();
   updateBrainIndicator();
 }
 

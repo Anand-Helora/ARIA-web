@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v0.9</title>
+  <title>ARIA — v1.1</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
   <script src="config.js"></script>
@@ -17,7 +17,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v0.9</span>
+          <span id="version-label" class="version-badge">v1.1</span>
         </div>
       </div>
       <div class="header-status">
@@ -278,14 +278,100 @@
             Stockage privé temporaire
           </small>
         </div>
-        <button
-          id="remove-pdf-button"
-          class="secondary compact"
-          type="button"
-        >
-          Retirer et supprimer
-        </button>
+        <div class="pdf-attachment-actions">
+          <button
+            id="classify-pdf-button"
+            class="compact"
+            type="button"
+          >
+            Analyser et classer
+          </button>
+          <button
+            id="remove-pdf-button"
+            class="secondary compact"
+            type="button"
+          >
+            Retirer et supprimer
+          </button>
+        </div>
       </div>
+
+      <section
+        id="document-analysis-card"
+        class="document-analysis-card"
+        hidden
+        aria-live="polite"
+      >
+        <div class="document-analysis-heading">
+          <div>
+            <p class="section-kicker">CLASSEMENT DOCUMENTAIRE</p>
+            <h2 id="document-analysis-title">Analyse du PDF</h2>
+          </div>
+          <span
+            id="document-analysis-confidence"
+            class="document-confidence"
+          >
+            Confiance —
+          </span>
+        </div>
+
+        <p
+          id="document-analysis-summary"
+          class="document-analysis-summary"
+        ></p>
+
+        <div
+          id="document-metadata-grid"
+          class="document-metadata-grid"
+        ></div>
+
+        <div class="document-filename-block">
+          <span>Nom proposé</span>
+          <code id="document-suggested-filename"></code>
+          <div class="document-filename-actions">
+            <button
+              id="copy-document-filename-button"
+              class="compact"
+              type="button"
+            >
+              Copier le nom
+            </button>
+            <button
+              id="reanalyze-document-button"
+              class="secondary compact"
+              type="button"
+            >
+              Relancer l’analyse
+            </button>
+          </div>
+        </div>
+
+        <div
+          id="document-missing-block"
+          class="document-feedback-block"
+          hidden
+        >
+          <strong>Champs à compléter</strong>
+          <ul id="document-missing-list"></ul>
+        </div>
+
+        <div
+          id="document-warning-block"
+          class="document-feedback-block warning"
+          hidden
+        >
+          <strong>Points d’attention</strong>
+          <ul id="document-warning-list"></ul>
+        </div>
+
+        <details
+          id="document-evidence-details"
+          class="document-evidence-details"
+        >
+          <summary>Voir les éléments détectés</summary>
+          <ul id="document-evidence-list"></ul>
+        </details>
+      </section>
 
       <div class="command-row">
         <textarea
@@ -330,7 +416,7 @@
         </div>
       </div>
       <p class="footer-technical">
-        ARIA Web v0.9 · PDF privé temporaire · vision contrôlée
+        ARIA Web v1.1 · BRAIN Knowledge · classement officiel
       </p>
       <p class="footer-safety">
         Validation humaine requise avant toute action métier.
@@ -380,20 +466,138 @@
     <div class="brain-dialog-content">
       <div class="dialog-heading">
         <div>
-          <p class="section-kicker">MÉMOIRE PRIVÉE</p>
-          <h2 id="brain-dialog-title">BRAIN validé</h2>
+          <p class="section-kicker">BRAIN PRIVÉ</p>
+          <h2 id="brain-dialog-title">Mémoire et connaissances</h2>
         </div>
         <button id="brain-dialog-close" class="dialog-close" type="button" aria-label="Fermer">×</button>
       </div>
 
-      <p id="brain-dialog-status" class="dialog-note">
-        Chargement des mémoires…
-      </p>
+      <div class="brain-tabs" role="tablist" aria-label="Sections de BRAIN">
+        <button
+          id="brain-memory-tab"
+          class="brain-tab active"
+          type="button"
+          role="tab"
+          aria-selected="true"
+          aria-controls="brain-memory-panel"
+        >
+          Mémoires
+        </button>
+        <button
+          id="brain-knowledge-tab"
+          class="brain-tab"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="brain-knowledge-panel"
+        >
+          Connaissances
+        </button>
+      </div>
 
-      <div id="brain-memory-list" class="brain-memory-list"></div>
+      <section
+        id="brain-memory-panel"
+        class="brain-tab-panel"
+        role="tabpanel"
+        aria-labelledby="brain-memory-tab"
+      >
+        <p id="brain-dialog-status" class="dialog-note">
+          Chargement des mémoires…
+        </p>
+
+        <div id="brain-memory-list" class="brain-memory-list"></div>
+
+        <div class="brain-panel-actions">
+          <button id="refresh-brain-button" class="secondary compact" type="button">
+            Actualiser les mémoires
+          </button>
+        </div>
+      </section>
+
+      <section
+        id="brain-knowledge-panel"
+        class="brain-tab-panel"
+        role="tabpanel"
+        aria-labelledby="brain-knowledge-tab"
+        hidden
+      >
+        <input
+          id="knowledge-package-input"
+          type="file"
+          accept="application/zip,.zip"
+          hidden
+        />
+
+        <p id="knowledge-dialog-status" class="dialog-note">
+          Chargement de BRAIN Knowledge…
+        </p>
+
+        <article id="knowledge-active-card" class="knowledge-active-card">
+          <div class="knowledge-active-heading">
+            <div>
+              <span>VERSION ACTIVE</span>
+              <h3 id="knowledge-active-version">Aucune</h3>
+            </div>
+            <span id="knowledge-active-badge" class="knowledge-status-badge">
+              Non configuré
+            </span>
+          </div>
+          <p id="knowledge-active-meta">
+            Aucun référentiel officiel n’est encore actif.
+          </p>
+          <div id="knowledge-active-modules" class="knowledge-module-grid"></div>
+        </article>
+
+        <div class="knowledge-import-actions">
+          <button id="import-knowledge-button" type="button">
+            Importer un paquet Knowledge
+          </button>
+          <button id="refresh-knowledge-button" class="secondary" type="button">
+            Actualiser
+          </button>
+        </div>
+
+        <div id="knowledge-upload-progress" class="knowledge-upload-progress" hidden>
+          <div>
+            <strong id="knowledge-upload-title">Téléversement sécurisé</strong>
+            <span id="knowledge-upload-percent">0 %</span>
+          </div>
+          <progress id="knowledge-upload-bar" max="100" value="0"></progress>
+        </div>
+
+        <article id="knowledge-preview-card" class="knowledge-preview-card" hidden>
+          <div class="knowledge-preview-heading">
+            <div>
+              <span>PAQUET CONTRÔLÉ</span>
+              <h3 id="knowledge-preview-version">Version —</h3>
+            </div>
+            <span id="knowledge-preview-badge" class="knowledge-status-badge">
+              En attente
+            </span>
+          </div>
+
+          <p id="knowledge-preview-meta"></p>
+          <div id="knowledge-preview-modules" class="knowledge-module-grid"></div>
+          <ul id="knowledge-preview-warnings" class="knowledge-warning-list"></ul>
+
+          <div class="knowledge-preview-actions">
+            <button id="activate-knowledge-button" type="button">
+              Activer cette version
+            </button>
+            <button id="cancel-knowledge-preview-button" class="secondary" type="button">
+              Annuler
+            </button>
+          </div>
+        </article>
+
+        <div class="knowledge-history-heading">
+          <h3>Historique des versions</h3>
+          <span>Retour arrière contrôlé</span>
+        </div>
+        <div id="knowledge-version-list" class="knowledge-version-list"></div>
+      </section>
 
       <div class="dialog-actions">
-        <button id="refresh-brain-button" class="secondary" type="button">Actualiser</button>
         <button id="brain-dialog-done" type="button">Fermer</button>
       </div>
     </div>

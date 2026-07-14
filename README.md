@@ -1,49 +1,39 @@
-# ARIA Web v0.9.0 — PDF privé temporaire
+# ARIA Web v1.1.0 — BRAIN Knowledge
 
-## Ajouter un PDF
+Le bouton `BRAIN` ouvre maintenant deux sections :
 
-Le bouton `Ajouter un PDF` accepte un seul document de 45 Mo maximum.
+- `Mémoires`
+- `Connaissances`
 
-ARIA vérifie localement :
+## Importer le paquet officiel
 
-- l’extension `.pdf` ;
-- la taille ;
-- la signature `%PDF-`.
+Dans l’onglet `Connaissances` :
 
-Le navigateur demande ensuite une URL d’upload temporaire à ARIA Core et
-envoie directement le fichier vers Vercel Blob privé.
+1. cliquer sur `Importer un paquet Knowledge` ;
+2. sélectionner `ARIA_BRAIN_Knowledge_Modules_v1.0.0_ACTIVE.zip` ;
+3. attendre le téléversement et la validation ;
+4. vérifier les huit modules ;
+5. cliquer sur `Activer cette version`.
 
-## Session documentaire
+Le paquet est envoyé directement vers le stockage privé Vercel. ARIA Core
+contrôle le manifest, les versions, les dépendances, les nombres
+d’enregistrements et les empreintes SHA-256 avant d’autoriser l’activation.
 
-Le PDF reste actif pour plusieurs questions successives.
+## Version active
 
-La carte affiche :
+L’interface affiche :
 
-- le nom ;
-- la taille ;
-- le statut privé ;
-- le bouton `Retirer et supprimer`.
+- la version active ;
+- le validateur et la date ;
+- les modules et leurs nombres d’enregistrements ;
+- l’historique des versions.
 
-Le document est supprimé lors :
+Une ancienne version peut être réactivée sans supprimer les versions récentes.
 
-- du retrait ;
-- du remplacement par un autre PDF ;
-- de l’ajout d’une image ;
-- de la réinitialisation d’ARIA.
+## Classificateur PDF
 
-Les fichiers abandonnés sont nettoyés après 24 heures lors d’un nouvel upload.
+Après activation de BRAIN Knowledge, le classificateur utilise les codes
+officiels. Un document reconnu comme plan est résolu en `PLA` lorsque le
+référentiel identifie `Plan d’implantation`.
 
-## Confidentialité
-
-- aucune URL privée durable dans GitHub ;
-- aucun PDF dans localStorage ;
-- seule la référence temporaire est conservée dans sessionStorage ;
-- aucun contenu du PDF n’est ajouté automatiquement à BRAIN ;
-- les réponses OpenAI sont demandées avec `store: false`.
-
-## Limites initiales
-
-- un PDF actif ;
-- pas de PDF protégé par mot de passe ;
-- 45 Mo maximum ;
-- analyse `detail: auto`.
+Aucun code documentaire n’est inventé par l’interface ou par le modèle.
