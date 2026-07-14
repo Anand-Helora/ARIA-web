@@ -1120,6 +1120,47 @@ dialog label {
   line-height: 1.35;
 }
 
+.document-inline-status {
+  display: grid;
+  gap: 3px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  font-size: 0.73rem;
+  line-height: 1.4;
+}
+
+.document-inline-status[hidden] {
+  display: none !important;
+}
+
+.document-inline-status.success {
+  border: 1px solid rgba(124, 224, 190, 0.28);
+  background: rgba(38, 116, 92, 0.14);
+}
+
+.document-inline-status.error {
+  border: 1px solid rgba(240, 144, 112, 0.34);
+  background: rgba(87, 38, 24, 0.22);
+}
+
+.document-inline-status strong {
+  color: var(--text);
+}
+
+.document-inline-status span {
+  color: var(--muted);
+}
+
+.document-inline-status code {
+  width: fit-content;
+  margin-top: 3px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  color: var(--warning);
+  background: rgba(0, 0, 0, 0.20);
+  font-size: 0.66rem;
+}
+
 .document-analysis-card {
   display: grid;
   gap: 12px;

@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.1.3",
+  version: "1.1.4",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -70,6 +70,8 @@ const ariaState = {
   documentAnalysisProgress: 0,
   documentAnalysisStage: "",
   documentAnalysisProgressTimer: null,
+  documentAnalysisError: null,
+  documentAnalysisDiagnostics: null,
   pendingMemory: null,
   savedMemories: [],
   memoryBusy: false,
@@ -455,7 +457,7 @@ async function requestRemoteAria(image = null, pdf = null) {
           : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "1.1.3"
+          version: config.version || "1.1.4"
         }
       }),
       signal: controller.signal
@@ -3175,6 +3177,8 @@ function clearDocumentAnalysis(
   updateInterface = true
 ) {
   ariaState.documentAnalysis = null;
+  ariaState.documentAnalysisError = null;
+  ariaState.documentAnalysisDiagnostics = null;
   stopDocumentAnalysisProgress(0);
   ariaState.documentAnalysisStage = "";
   saveDocumentAnalysisSession();
@@ -3219,7 +3223,7 @@ async function requestDocumentClassification(
           client: {
             name: "ARIA-web",
             version:
-              config.version || "1.1.3"
+              config.version || "1.1.4"
           }
         }),
         signal: controller.signal
@@ -3245,6 +3249,8 @@ async function requestDocumentClassification(
         data.stage || null;
       error.retryable =
         Boolean(data.retryable);
+      error.diagnosticCode =
+        data.diagnosticCode || null;
       throw error;
     }
 
@@ -3258,7 +3264,12 @@ async function requestDocumentClassification(
       );
     }
 
-    return data.classification;
+    return {
+      classification:
+        data.classification,
+      diagnostics:
+        data.diagnostics || null
+    };
   } finally {
     window.clearTimeout(timeoutId);
   }
@@ -3454,6 +3465,8 @@ async function classifyPendingPdf() {
   }
 
   ariaState.documentAnalysisBusy = true;
+  ariaState.documentAnalysisError = null;
+  ariaState.documentAnalysisDiagnostics = null;
   startDocumentAnalysisProgress();
   updateDocumentAnalysisInterface();
   updatePdfAttachmentInterface();
@@ -3465,13 +3478,20 @@ async function classifyPendingPdf() {
   );
 
   try {
-    const classification =
+    const result =
       await requestDocumentClassification(
         pdf
       );
 
+    const classification =
+      result.classification;
+
     ariaState.documentAnalysis =
       classification;
+    ariaState.documentAnalysisDiagnostics =
+      result.diagnostics;
+    ariaState.documentAnalysisError =
+      null;
     stopDocumentAnalysisProgress(100);
     saveDocumentAnalysisSession();
     updateDocumentAnalysisInterface();
@@ -3493,12 +3513,25 @@ async function classifyPendingPdf() {
         : "Le nom proposé contient tous les champs requis."
     );
 
-    getElement(
-      "document-analysis-card"
-    ).scrollIntoView({
-      behavior: "smooth",
-      block: "nearest"
-    });
+    window.requestAnimationFrame(
+      () => {
+        const resultElement =
+          getElement(
+            "document-analysis-content"
+          );
+
+        setElementDisplayed(
+          resultElement,
+          true,
+          "grid"
+        );
+
+        resultElement.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest"
+        });
+      }
+    );
   } catch (error) {
     console.error(
       "Document classification failed:",
@@ -3516,6 +3549,22 @@ async function classifyPendingPdf() {
         : "";
 
     stopDocumentAnalysisProgress(0);
+
+    ariaState.documentAnalysisError = {
+      message:
+        getReadableError(error),
+      stage:
+        error?.stage || null,
+      code:
+        error?.diagnosticCode ||
+        (
+          error?.stage
+            ? `ARIA-DOC-${error.stage}-${error.status || "error"}`
+            : null
+        )
+    };
+
+    updateDocumentAnalysisInterface();
 
     setState(
       "error",
@@ -3597,6 +3646,30 @@ function fillStringList(
   }
 }
 
+
+function setElementDisplayed(
+  element,
+  displayed,
+  displayValue = "grid"
+) {
+  element.hidden = !displayed;
+
+  if (displayed) {
+    element.removeAttribute(
+      "hidden"
+    );
+    element.style.display =
+      displayValue;
+  } else {
+    element.setAttribute(
+      "hidden",
+      ""
+    );
+    element.style.display =
+      "none";
+  }
+}
+
 function updateDocumentAnalysisInterface() {
   if (!domReady) return;
 
@@ -3627,6 +3700,21 @@ function updateDocumentAnalysisInterface() {
   const detailsPanel = getElement(
     "document-details-panel"
   );
+  const successBlock = getElement(
+    "document-analysis-success"
+  );
+  const successText = getElement(
+    "document-analysis-success-text"
+  );
+  const errorBlock = getElement(
+    "document-analysis-error"
+  );
+  const errorText = getElement(
+    "document-analysis-error-text"
+  );
+  const errorCode = getElement(
+    "document-analysis-error-code"
+  );
 
   const canClassify =
     Boolean(pdf) &&
@@ -3635,7 +3723,11 @@ function updateDocumentAnalysisInterface() {
     !ariaState.pdfBusy &&
     !ariaState.documentAnalysisBusy;
 
-  card.hidden = !pdf;
+  setElementDisplayed(
+    card,
+    Boolean(pdf),
+    "grid"
+  );
 
   classifyButton.disabled = !canClassify;
   removeButton.disabled =
@@ -3654,9 +3746,80 @@ function updateDocumentAnalysisInterface() {
   copyButton.disabled =
     !analysis?.suggested_filename;
 
-  emptyState.hidden = Boolean(analysis);
-  content.hidden = !analysis;
-  confidenceBadge.hidden = !analysis;
+  setElementDisplayed(
+    emptyState,
+    Boolean(pdf) &&
+      !analysis &&
+      !ariaState.documentAnalysisBusy &&
+      !ariaState.documentAnalysisError,
+    "grid"
+  );
+
+  setElementDisplayed(
+    content,
+    Boolean(analysis),
+    "grid"
+  );
+
+  setElementDisplayed(
+    confidenceBadge,
+    Boolean(analysis),
+    "inline-flex"
+  );
+
+  setElementDisplayed(
+    successBlock,
+    Boolean(analysis) &&
+      !ariaState.documentAnalysisBusy,
+    "grid"
+  );
+
+  setElementDisplayed(
+    errorBlock,
+    Boolean(
+      ariaState.documentAnalysisError
+    ),
+    "grid"
+  );
+
+  if (analysis) {
+    const mode =
+      ariaState
+        .documentAnalysisDiagnostics
+        ?.classificationMode;
+
+    successText.textContent =
+      mode === "json_fallback"
+        ? "Le classement est affiché. ARIA a utilisé le mode JSON de secours."
+        : "Le classement est affiché ci-dessous.";
+  } else {
+    successText.textContent =
+      "";
+  }
+
+  if (
+    ariaState.documentAnalysisError
+  ) {
+    errorText.textContent =
+      ariaState
+        .documentAnalysisError
+        .message ||
+      "Une erreur inconnue a interrompu l’analyse.";
+
+    errorCode.textContent =
+      ariaState
+        .documentAnalysisError
+        .code ||
+      "";
+    errorCode.hidden =
+      !ariaState
+        .documentAnalysisError
+        .code;
+  } else {
+    errorText.textContent = "";
+    errorCode.textContent = "";
+    errorCode.hidden = true;
+  }
 
   if (!analysis) {
     getElement(
@@ -3688,6 +3851,7 @@ function updateDocumentAnalysisInterface() {
     ).hidden = true;
 
     detailsPanel.open = false;
+    updateDocumentAnalysisProgressInterface();
     return;
   }
 
@@ -5039,7 +5203,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.1.3").replace(/^v/, "")}`;
+    `v${String(config.version || "1.1.4").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf

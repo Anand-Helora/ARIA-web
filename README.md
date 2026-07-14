@@ -1,33 +1,26 @@
-# ARIA Web v1.1.3 — Progression et diagnostic
+# ARIA Web v1.1.4 — Correction d’affichage et de cache
 
-## Téléversement
+## Correction principale
 
-La carte PDF apparaît dès le début de l’upload et affiche :
-
-- le nom du fichier ;
-- une barre de progression réelle ;
-- le pourcentage réellement envoyé vers Vercel Blob.
-
-## Analyse
-
-La carte documentaire affiche une barre d’avancement par étapes :
-
-1. préparation ;
-2. chargement de BRAIN Knowledge ;
-3. lecture des pages ;
-4. extraction des métadonnées ;
-5. validation des codes ;
-6. construction du nom.
-
-Cette progression est estimée jusqu’à la réponse finale, car le moteur renvoie
-le classement complet en une seule réponse.
-
-## Erreurs
-
-ARIA affiche désormais l’étape technique ayant échoué, par exemple :
+Les ressources utilisent maintenant un numéro de version dans leur URL :
 
 ```text
-Étape : pdf_download
-Étape : openai_request
-Étape : structured_output
+style.css?v=1.1.4
+config.js?v=1.1.4
+sketch.js?v=1.1.4
 ```
+
+Le navigateur ne peut donc plus combiner un ancien HTML avec un nouveau
+JavaScript après une mise à jour GitHub Pages.
+
+## Résultat garanti
+
+Après l’analyse, ARIA force explicitement l’affichage du bloc de résultat.
+
+En cas d’échec, la carte affiche directement :
+
+- le message ;
+- l’étape ;
+- un code de diagnostic.
+
+Le bouton reste utilisable pour relancer l’analyse.
