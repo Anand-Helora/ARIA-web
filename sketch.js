@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.3.3",
+  version: "1.3.5",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -79,6 +79,9 @@ const ariaState = {
   documentEditorLoadBusy: false,
   documentEditorNormalizationTimer: null,
   documentDownloadBusy: false,
+  documentDownloadUrl: "",
+  documentDownloadFilename: "",
+  documentDownloadFallbackTimer: null,
   documentEditMode: false,
   documentEditSnapshot: null,
   documentEditorDirty: false,
@@ -235,6 +238,16 @@ function initializeInterface() {
   getElement("download-renamed-pdf-button").addEventListener(
     "click",
     downloadRenamedPdf
+  );
+  getElement("document-download-fallback").addEventListener(
+    "click",
+    () => {
+      setState(
+        "idle",
+        "Téléchargement ouvert.",
+        "ARIA reste disponible dans cet onglet. Le téléchargement est traité dans un nouvel onglet."
+      );
+    }
   );
   getElement("document-metadata-editor").addEventListener(
     "input",
@@ -564,7 +577,7 @@ async function requestRemoteAria(image = null, pdf = null) {
           : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "1.3.3"
+          version: config.version || "1.3.5"
         }
       }),
       signal: controller.signal
@@ -4560,6 +4573,30 @@ function clearDocumentAnalysis(
   ariaState.documentEditorSiteId = "";
   ariaState.documentEditorBusy = false;
   ariaState.documentDownloadBusy = false;
+  ariaState.documentDownloadUrl = "";
+  ariaState.documentDownloadFilename = "";
+
+  if (domReady) {
+    const downloadPanel =
+      document.getElementById(
+        "document-download-ready"
+      );
+
+    if (downloadPanel) {
+      downloadPanel.hidden = true;
+    }
+  }
+
+  if (
+    ariaState.documentDownloadFallbackTimer
+  ) {
+    window.clearTimeout(
+      ariaState.documentDownloadFallbackTimer
+    );
+    ariaState.documentDownloadFallbackTimer =
+      null;
+  }
+
   ariaState.documentEditMode = false;
   ariaState.documentEditSnapshot = null;
   ariaState.documentEditorDirty = false;
@@ -4619,7 +4656,7 @@ async function requestDocumentClassification(
           client: {
             name: "ARIA-web",
             version:
-              config.version || "1.3.3"
+              config.version || "1.3.5"
           }
         }),
         signal: controller.signal
@@ -6328,6 +6365,138 @@ function updateDocumentEditorInterface() {
   }
 }
 
+function hideDocumentDownloadFallback() {
+  if (!domReady) return;
+
+  const panel =
+    getElement(
+      "document-download-ready"
+    );
+  const link =
+    getElement(
+      "document-download-fallback"
+    );
+
+  panel.hidden = true;
+  link.href = "#";
+
+  ariaState.documentDownloadUrl =
+    "";
+  ariaState.documentDownloadFilename =
+    "";
+
+  if (
+    ariaState.documentDownloadFallbackTimer
+  ) {
+    window.clearTimeout(
+      ariaState.documentDownloadFallbackTimer
+    );
+    ariaState.documentDownloadFallbackTimer =
+      null;
+  }
+}
+
+function showDocumentDownloadFallback(
+  downloadUrl,
+  filename,
+  expiresAt = null
+) {
+  const panel =
+    getElement(
+      "document-download-ready"
+    );
+  const link =
+    getElement(
+      "document-download-fallback"
+    );
+  const filenameElement =
+    getElement(
+      "document-download-ready-filename"
+    );
+  const expiryElement =
+    getElement(
+      "document-download-ready-expiry"
+    );
+
+  ariaState.documentDownloadUrl =
+    downloadUrl;
+  ariaState.documentDownloadFilename =
+    filename;
+
+  link.href =
+    downloadUrl;
+  link.textContent =
+    "Télécharger maintenant";
+
+  filenameElement.textContent =
+    filename;
+
+  const expirationDate =
+    expiresAt
+      ? new Date(expiresAt)
+      : null;
+
+  expiryElement.textContent =
+    expirationDate &&
+    Number.isFinite(
+      expirationDate.getTime()
+    )
+      ? `Lien valable jusqu’à ${new Intl.DateTimeFormat(
+          "fr-BE",
+          {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit"
+          }
+        ).format(expirationDate)}.`
+      : "Le lien sécurisé est temporaire.";
+
+  panel.hidden = false;
+
+  if (
+    ariaState.documentDownloadFallbackTimer
+  ) {
+    window.clearTimeout(
+      ariaState.documentDownloadFallbackTimer
+    );
+  }
+
+  const timeout =
+    expirationDate &&
+    Number.isFinite(
+      expirationDate.getTime()
+    )
+      ? Math.max(
+          5000,
+          expirationDate.getTime() -
+            Date.now() +
+            1000
+        )
+      : 5 * 60 * 1000;
+
+  ariaState.documentDownloadFallbackTimer =
+    window.setTimeout(
+      () => {
+        hideDocumentDownloadFallback();
+
+        setState(
+          "idle",
+          "Le lien de téléchargement a expiré.",
+          "Clique à nouveau sur « Télécharger la copie renommée » pour en préparer un nouveau."
+        );
+      },
+      timeout
+    );
+
+  window.requestAnimationFrame(
+    () =>
+      panel.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest"
+      })
+  );
+}
+
 async function downloadRenamedPdf() {
   const pdf =
     ariaState.pendingPdf;
@@ -6345,10 +6514,12 @@ async function downloadRenamedPdf() {
     setState(
       "error",
       "Téléchargement indisponible.",
-      "Complète et enregistre toutes les métadonnées avant de télécharger la copie."
+      "Complète et enregistre toutes les métadonnées avant de préparer la copie."
     );
     return;
   }
+
+  hideDocumentDownloadFallback();
 
   ariaState.documentDownloadBusy =
     true;
@@ -6356,11 +6527,9 @@ async function downloadRenamedPdf() {
 
   setState(
     "thinking",
-    "Préparation de la copie renommée…",
-    "ARIA crée une copie privée temporaire. Le document original reste inchangé."
+    "Préparation du téléchargement…",
+    "ARIA Core vérifie le PDF et prépare un lien sécurisé."
   );
-
-  let downloadFrame = null;
 
   try {
     const data =
@@ -6380,41 +6549,24 @@ async function downloadRenamedPdf() {
       data.download;
 
     if (
-      !download?.fileUrl ||
+      !download?.downloadUrl ||
       !download?.filename
     ) {
       throw new Error(
-        "ARIA Core n’a pas fourni de téléchargement exploitable."
+        "ARIA Core n’a pas fourni de lien de téléchargement exploitable."
       );
     }
 
-    downloadFrame =
-      document.createElement(
-        "iframe"
-      );
-    downloadFrame.hidden = true;
-    downloadFrame.setAttribute(
-      "aria-hidden",
-      "true"
-    );
-    downloadFrame.src =
-      download.fileUrl;
-
-    document.body.append(
-      downloadFrame
-    );
-
-    window.setTimeout(
-      () => {
-        downloadFrame?.remove();
-      },
-      90000
+    showDocumentDownloadFallback(
+      download.downloadUrl,
+      download.filename,
+      download.expiresAt
     );
 
     setState(
       "idle",
-      "Téléchargement lancé.",
-      `Copie : ${download.filename}`
+      "La copie est prête.",
+      "Clique sur le bouton « Télécharger maintenant » affiché sous les actions."
     );
   } catch (error) {
     console.error(
@@ -6424,7 +6576,7 @@ async function downloadRenamedPdf() {
 
     setState(
       "error",
-      "Téléchargement impossible.",
+      "Préparation du téléchargement impossible.",
       getReadableError(error)
     );
   } finally {
@@ -6536,9 +6688,9 @@ function updateDocumentAnalysisInterface() {
 
   downloadButton.textContent =
     ariaState.documentDownloadBusy
-      ? "Préparation du téléchargement…"
+      ? "Préparation du lien…"
       : filenameComplete
-        ? "Télécharger la copie renommée"
+        ? "Préparer le téléchargement"
         : "Compléter le nom avant téléchargement";
 
   editButton.disabled =
@@ -8043,7 +8195,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.3.3").replace(/^v/, "")}`;
+    `v${String(config.version || "1.3.5").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf
