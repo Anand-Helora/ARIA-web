@@ -1,23 +1,18 @@
-# ARIA Web v1.3.5 — Téléchargement explicite
+# ARIA Web v1.3.6 — PDF reçu avant enregistrement
 
-## Causes corrigées
-
-- le lien manuel avait été inséré dans la fenêtre BRAIN au lieu de la carte ;
-- le navigateur pouvait ignorer une navigation déclenchée automatiquement
-  après une requête asynchrone.
-
-## Nouveau parcours
+## Parcours
 
 ```text
-Préparer le téléchargement
-→ lien sécurisé reçu
-→ panneau visible dans la carte
-→ Télécharger maintenant
+Préparer le fichier
+→ téléchargement authentifié depuis ARIA Core
+→ progression réelle
+→ contrôle du type et de la taille du fichier
+→ création d’une URL locale blob:
+→ Enregistrer le PDF
 ```
 
-Le second clic est un geste utilisateur direct.
+Le bouton final ne contacte aucun serveur. Il enregistre un fichier déjà reçu
+dans le navigateur.
 
-Le lien ouvre la route ARIA Core dans un nouvel onglet. Si le serveur renvoie
-une erreur, son message reste visible dans cet onglet sans fermer ARIA.
-
-Aucune mise à jour ARIA Core n’est nécessaire.
+Cette version n’utilise ni iframe, ni nouvel onglet, ni ticket dans l’URL, ni
+URL Vercel Blob côté navigateur.

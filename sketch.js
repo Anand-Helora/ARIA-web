@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.3.5",
+  version: "1.3.6",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -81,6 +81,8 @@ const ariaState = {
   documentDownloadBusy: false,
   documentDownloadUrl: "",
   documentDownloadFilename: "",
+  documentDownloadObjectUrl: "",
+  documentDownloadProgress: 0,
   documentDownloadFallbackTimer: null,
   documentEditMode: false,
   documentEditSnapshot: null,
@@ -244,8 +246,8 @@ function initializeInterface() {
     () => {
       setState(
         "idle",
-        "Téléchargement ouvert.",
-        "ARIA reste disponible dans cet onglet. Le téléchargement est traité dans un nouvel onglet."
+        "Enregistrement demandé.",
+        "Le navigateur enregistre la copie locale portant le nom validé."
       );
     }
   );
@@ -577,7 +579,7 @@ async function requestRemoteAria(image = null, pdf = null) {
           : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "1.3.5"
+          version: config.version || "1.3.6"
         }
       }),
       signal: controller.signal
@@ -4575,6 +4577,17 @@ function clearDocumentAnalysis(
   ariaState.documentDownloadBusy = false;
   ariaState.documentDownloadUrl = "";
   ariaState.documentDownloadFilename = "";
+  ariaState.documentDownloadProgress = 0;
+
+  if (
+    ariaState.documentDownloadObjectUrl
+  ) {
+    URL.revokeObjectURL(
+      ariaState.documentDownloadObjectUrl
+    );
+    ariaState.documentDownloadObjectUrl =
+      "";
+  }
 
   if (domReady) {
     const downloadPanel =
@@ -4656,7 +4669,7 @@ async function requestDocumentClassification(
           client: {
             name: "ARIA-web",
             version:
-              config.version || "1.3.5"
+              config.version || "1.3.6"
           }
         }),
         signal: controller.signal
@@ -6365,6 +6378,18 @@ function updateDocumentEditorInterface() {
   }
 }
 
+function revokeDocumentDownloadObjectUrl() {
+  if (
+    ariaState.documentDownloadObjectUrl
+  ) {
+    URL.revokeObjectURL(
+      ariaState.documentDownloadObjectUrl
+    );
+    ariaState.documentDownloadObjectUrl =
+      "";
+  }
+}
+
 function hideDocumentDownloadFallback() {
   if (!domReady) return;
 
@@ -6379,11 +6404,18 @@ function hideDocumentDownloadFallback() {
 
   panel.hidden = true;
   link.href = "#";
+  link.removeAttribute(
+    "download"
+  );
 
   ariaState.documentDownloadUrl =
     "";
   ariaState.documentDownloadFilename =
     "";
+  ariaState.documentDownloadProgress =
+    0;
+
+  revokeDocumentDownloadObjectUrl();
 
   if (
     ariaState.documentDownloadFallbackTimer
@@ -6396,10 +6428,38 @@ function hideDocumentDownloadFallback() {
   }
 }
 
+function formatDocumentDownloadSize(
+  bytes
+) {
+  const size =
+    Number(bytes);
+
+  if (
+    !Number.isFinite(size) ||
+    size <= 0
+  ) {
+    return "taille inconnue";
+  }
+
+  if (size < 1024 * 1024) {
+    return `${Math.max(
+      1,
+      Math.round(
+        size / 1024
+      )
+    )} Ko`;
+  }
+
+  return `${(
+    size /
+    (1024 * 1024)
+  ).toFixed(1)} Mo`;
+}
+
 function showDocumentDownloadFallback(
-  downloadUrl,
+  objectUrl,
   filename,
-  expiresAt = null
+  size
 ) {
   const panel =
     getElement(
@@ -6413,43 +6473,36 @@ function showDocumentDownloadFallback(
     getElement(
       "document-download-ready-filename"
     );
-  const expiryElement =
+  const infoElement =
     getElement(
       "document-download-ready-expiry"
     );
 
+  revokeDocumentDownloadObjectUrl();
+
+  ariaState.documentDownloadObjectUrl =
+    objectUrl;
   ariaState.documentDownloadUrl =
-    downloadUrl;
+    objectUrl;
   ariaState.documentDownloadFilename =
     filename;
+  ariaState.documentDownloadProgress =
+    100;
 
   link.href =
-    downloadUrl;
+    objectUrl;
+  link.download =
+    filename;
   link.textContent =
-    "Télécharger maintenant";
+    "Enregistrer le PDF";
 
   filenameElement.textContent =
     filename;
 
-  const expirationDate =
-    expiresAt
-      ? new Date(expiresAt)
-      : null;
-
-  expiryElement.textContent =
-    expirationDate &&
-    Number.isFinite(
-      expirationDate.getTime()
-    )
-      ? `Lien valable jusqu’à ${new Intl.DateTimeFormat(
-          "fr-BE",
-          {
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit"
-          }
-        ).format(expirationDate)}.`
-      : "Le lien sécurisé est temporaire.";
+  infoElement.textContent =
+    `PDF reçu : ${formatDocumentDownloadSize(
+      size
+    )}. Le fichier est prêt à être enregistré sur cet appareil.`;
 
   panel.hidden = false;
 
@@ -6461,19 +6514,6 @@ function showDocumentDownloadFallback(
     );
   }
 
-  const timeout =
-    expirationDate &&
-    Number.isFinite(
-      expirationDate.getTime()
-    )
-      ? Math.max(
-          5000,
-          expirationDate.getTime() -
-            Date.now() +
-            1000
-        )
-      : 5 * 60 * 1000;
-
   ariaState.documentDownloadFallbackTimer =
     window.setTimeout(
       () => {
@@ -6481,11 +6521,11 @@ function showDocumentDownloadFallback(
 
         setState(
           "idle",
-          "Le lien de téléchargement a expiré.",
-          "Clique à nouveau sur « Télécharger la copie renommée » pour en préparer un nouveau."
+          "La copie locale a été libérée.",
+          "Clique à nouveau sur « Préparer le fichier » pour la recréer."
         );
       },
-      timeout
+      10 * 60 * 1000
     );
 
   window.requestAnimationFrame(
@@ -6494,6 +6534,209 @@ function showDocumentDownloadFallback(
         behavior: "smooth",
         block: "nearest"
       })
+  );
+}
+
+function requestRenamedPdfBytes({
+  pathname,
+  name,
+  size,
+  filename,
+  onProgress
+}) {
+  return new Promise(
+    (resolve, reject) => {
+      const request =
+        new XMLHttpRequest();
+
+      request.open(
+        "POST",
+        config.pdfApiUrl,
+        true
+      );
+      request.responseType =
+        "blob";
+      request.timeout =
+        Math.max(
+          Number(
+            config.pdfUploadTimeoutMs
+          ) || 300000,
+          120000
+        );
+
+      request.setRequestHeader(
+        "Content-Type",
+        "application/json"
+      );
+      request.setRequestHeader(
+        "Authorization",
+        `Bearer ${ariaState.accessToken}`
+      );
+
+      request.addEventListener(
+        "progress",
+        (event) => {
+          if (
+            !event.lengthComputable ||
+            event.total <= 0
+          ) {
+            return;
+          }
+
+          const percent =
+            Math.max(
+              0,
+              Math.min(
+                99,
+                Math.round(
+                  (
+                    event.loaded /
+                    event.total
+                  ) * 100
+                )
+              )
+            );
+
+          onProgress?.(
+            percent,
+            event.loaded,
+            event.total
+          );
+        }
+      );
+
+      request.addEventListener(
+        "load",
+        async () => {
+          if (
+            request.status >= 200 &&
+            request.status < 300
+          ) {
+            const blob =
+              request.response;
+
+            if (
+              !(blob instanceof Blob) ||
+              blob.size <= 0
+            ) {
+              reject(
+                new Error(
+                  "ARIA Core a renvoyé un fichier vide."
+                )
+              );
+              return;
+            }
+
+            const contentType =
+              String(
+                blob.type ||
+                request.getResponseHeader(
+                  "Content-Type"
+                ) ||
+                ""
+              ).toLowerCase();
+
+            if (
+              contentType &&
+              !contentType.includes(
+                "application/pdf"
+              ) &&
+              !contentType.includes(
+                "application/octet-stream"
+              )
+            ) {
+              const message =
+                await blob.text()
+                  .catch(
+                    () => ""
+                  );
+
+              reject(
+                new Error(
+                  message ||
+                  `ARIA Core a renvoyé un contenu inattendu : ${contentType}.`
+                )
+              );
+              return;
+            }
+
+            resolve({
+              blob,
+              coreVersion:
+                request.getResponseHeader(
+                  "X-ARIA-Core-Version"
+                ) || ""
+            });
+            return;
+          }
+
+          const errorBlob =
+            request.response;
+
+          const message =
+            errorBlob instanceof Blob
+              ? await errorBlob
+                  .text()
+                  .catch(
+                    () => ""
+                  )
+              : "";
+
+          const error =
+            new Error(
+              message ||
+              `Le service PDF a répondu avec le statut ${request.status}.`
+            );
+          error.status =
+            request.status;
+          reject(error);
+        }
+      );
+
+      request.addEventListener(
+        "error",
+        () => {
+          reject(
+            new Error(
+              "La connexion avec ARIA Core a été interrompue pendant la réception du PDF."
+            )
+          );
+        }
+      );
+
+      request.addEventListener(
+        "timeout",
+        () => {
+          reject(
+            new Error(
+              "La réception du PDF a dépassé le délai autorisé."
+            )
+          );
+        }
+      );
+
+      request.addEventListener(
+        "abort",
+        () => {
+          reject(
+            new Error(
+              "La réception du PDF a été annulée."
+            )
+          );
+        }
+      );
+
+      request.send(
+        JSON.stringify({
+          action:
+            "download_renamed_bytes",
+          pathname,
+          name,
+          size,
+          filename
+        })
+      );
+    }
   );
 }
 
@@ -6514,7 +6757,7 @@ async function downloadRenamedPdf() {
     setState(
       "error",
       "Téléchargement indisponible.",
-      "Complète et enregistre toutes les métadonnées avant de préparer la copie."
+      "Complète et enregistre toutes les métadonnées avant de préparer le fichier."
     );
     return;
   }
@@ -6523,60 +6766,68 @@ async function downloadRenamedPdf() {
 
   ariaState.documentDownloadBusy =
     true;
+  ariaState.documentDownloadProgress =
+    0;
   updateDocumentAnalysisInterface();
 
   setState(
     "thinking",
-    "Préparation du téléchargement…",
-    "ARIA Core vérifie le PDF et prépare un lien sécurisé."
+    "Réception du PDF…",
+    "ARIA Core transmet directement le fichier privé au navigateur."
   );
 
   try {
-    const data =
-      await requestPdfService({
-        action:
-          "prepare_renamed_download",
+    const result =
+      await requestRenamedPdfBytes({
         pathname:
           pdf.pathname,
         name:
           pdf.name,
         size:
           pdf.size,
-        filename
+        filename,
+        onProgress:
+          (percent) => {
+            ariaState.documentDownloadProgress =
+              percent;
+
+            const button =
+              getElement(
+                "download-renamed-pdf-button"
+              );
+
+            button.textContent =
+              `Réception du PDF · ${percent} %`;
+          }
       });
 
-    const download =
-      data.download;
-
-    if (
-      !download?.downloadUrl ||
-      !download?.filename
-    ) {
-      throw new Error(
-        "ARIA Core n’a pas fourni de lien de téléchargement exploitable."
+    const objectUrl =
+      URL.createObjectURL(
+        result.blob
       );
-    }
 
     showDocumentDownloadFallback(
-      download.downloadUrl,
-      download.filename,
-      download.expiresAt
+      objectUrl,
+      filename,
+      result.blob.size
     );
 
     setState(
       "idle",
-      "La copie est prête.",
-      "Clique sur le bouton « Télécharger maintenant » affiché sous les actions."
+      "Le PDF est prêt.",
+      "Clique sur « Enregistrer le PDF ». Le fichier a déjà été reçu et vérifié."
     );
   } catch (error) {
     console.error(
-      "Renamed PDF download failed:",
+      "Binary PDF download failed:",
       error
     );
 
+    hideDocumentDownloadFallback();
+
     setState(
       "error",
-      "Préparation du téléchargement impossible.",
+      "Réception du PDF impossible.",
       getReadableError(error)
     );
   } finally {
@@ -6688,9 +6939,13 @@ function updateDocumentAnalysisInterface() {
 
   downloadButton.textContent =
     ariaState.documentDownloadBusy
-      ? "Préparation du lien…"
+      ? (
+          ariaState.documentDownloadProgress > 0
+            ? `Réception du PDF · ${ariaState.documentDownloadProgress} %`
+            : "Connexion au PDF…"
+        )
       : filenameComplete
-        ? "Préparer le téléchargement"
+        ? "Préparer le fichier"
         : "Compléter le nom avant téléchargement";
 
   editButton.disabled =
@@ -8195,7 +8450,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.3.5").replace(/^v/, "")}`;
+    `v${String(config.version || "1.3.6").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf

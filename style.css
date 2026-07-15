@@ -2559,3 +2559,19 @@ code {
     width: 100%;
   }
 }
+
+
+/* Réception binaire vérifiée — v1.3.6 */
+
+.document-download-ready
+.document-download-fallback {
+  cursor: pointer;
+}
+
+.document-download-ready
+.document-download-fallback::before {
+  content: "↓";
+  margin-right: 7px;
+  font-size: 1rem;
+  font-weight: 900;
+}
