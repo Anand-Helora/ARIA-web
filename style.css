@@ -2275,3 +2275,166 @@ code {
     width: 100%;
   }
 }
+
+
+/* Éditeur transactionnel v1.3.1 */
+
+.document-analysis-card.editing.dirty {
+  box-shadow:
+    0 0 0 2px rgba(239, 193, 119, 0.12),
+    0 16px 40px rgba(0, 0, 0, 0.18);
+}
+
+.document-analysis-card.editing.dirty
+.document-editor-status {
+  border: 1px solid rgba(239, 193, 119, 0.30);
+  color: var(--warning);
+  background: rgba(59, 45, 26, 0.18);
+}
+
+
+/* Contraste renforcé du titre des métadonnées — v1.3.2 */
+
+.document-editor-panel {
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid rgba(239, 193, 119, 0.46);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(28, 24, 16, 0.58),
+      rgba(6, 24, 32, 0.86)
+    );
+}
+
+.document-editor-panel > summary {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 62px;
+  padding: 11px 13px;
+  border: 0;
+  border-bottom: 1px solid rgba(239, 193, 119, 0.26);
+  color: #fff8eb;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(177, 118, 32, 0.98),
+      rgba(119, 75, 18, 0.98)
+    );
+  cursor: pointer;
+  list-style: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 8px 22px rgba(0, 0, 0, 0.18);
+  transition:
+    filter 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.document-editor-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.document-editor-panel > summary:hover {
+  filter: brightness(1.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 10px 26px rgba(0, 0, 0, 0.23);
+}
+
+.document-editor-panel > summary:focus-visible {
+  outline: 3px solid rgba(255, 255, 255, 0.72);
+  outline-offset: -4px;
+}
+
+.document-editor-summary-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 10px;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.document-editor-summary-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.document-editor-summary-copy strong {
+  color: #ffffff;
+  font-size: 0.88rem;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+}
+
+.document-editor-summary-copy small {
+  color: rgba(255, 248, 235, 0.82);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.document-editor-summary-arrow {
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  font-size: 1.45rem;
+  font-weight: 700;
+  transform: rotate(0deg);
+  transition: transform 160ms ease;
+}
+
+.document-editor-panel[open] .document-editor-summary-arrow {
+  transform: rotate(90deg);
+}
+
+.document-editor-panel[open] > summary {
+  margin-bottom: 0;
+}
+
+.document-editor-panel > .document-editor-help,
+.document-editor-panel > .document-editor-loading,
+.document-editor-panel > .document-editor-grid,
+.document-editor-panel > .document-editor-status,
+.document-editor-panel > .document-edit-mode-actions {
+  margin-left: 12px;
+  margin-right: 12px;
+}
+
+.document-editor-panel > .document-editor-help {
+  margin-top: 12px;
+}
+
+.document-editor-panel > .document-edit-mode-actions {
+  margin-bottom: 12px;
+}
+
+@media (max-width: 640px) {
+  .document-editor-panel > summary {
+    grid-template-columns: 34px minmax(0, 1fr) 18px;
+    min-height: 58px;
+    padding: 10px 11px;
+  }
+
+  .document-editor-summary-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+  }
+
+  .document-editor-summary-copy strong {
+    font-size: 0.82rem;
+  }
+
+  .document-editor-summary-copy small {
+    font-size: 0.64rem;
+  }
+}

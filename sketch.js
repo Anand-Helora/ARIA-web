@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.3.0",
+  version: "1.3.2",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -81,6 +81,7 @@ const ariaState = {
   documentDownloadBusy: false,
   documentEditMode: false,
   documentEditSnapshot: null,
+  documentEditorDirty: false,
   pendingMemory: null,
   savedMemories: [],
   memoryBusy: false,
@@ -563,7 +564,7 @@ async function requestRemoteAria(image = null, pdf = null) {
           : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "1.3.0"
+          version: config.version || "1.3.2"
         }
       }),
       signal: controller.signal
@@ -3012,9 +3013,34 @@ async function publishKnowledgeManager() {
     if (
       ariaState.documentAnalysis
     ) {
+      const localDraft =
+        ariaState.documentEditMode &&
+        ariaState.documentEditorDirty
+          ? {
+              metadata: {
+                ...ariaState
+                  .documentEditorMetadata
+              },
+              siteId:
+                ariaState
+                  .documentEditorSiteId
+            }
+          : null;
+
       await loadDocumentEditorReferences();
+
+      if (localDraft) {
+        ariaState.documentEditorMetadata =
+          localDraft.metadata;
+        ariaState.documentEditorSiteId =
+          localDraft.siteId;
+      }
+
       renderDocumentEditorOptions();
-      syncDocumentEditorValues();
+
+      if (!localDraft) {
+        syncDocumentEditorValues();
+      }
     }
 
     getElement(
@@ -4536,6 +4562,7 @@ function clearDocumentAnalysis(
   ariaState.documentDownloadBusy = false;
   ariaState.documentEditMode = false;
   ariaState.documentEditSnapshot = null;
+  ariaState.documentEditorDirty = false;
 
   if (
     ariaState.documentEditorNormalizationTimer
@@ -4592,7 +4619,7 @@ async function requestDocumentClassification(
           client: {
             name: "ARIA-web",
             version:
-              config.version || "1.3.0"
+              config.version || "1.3.2"
           }
         }),
         signal: controller.signal
@@ -4867,6 +4894,7 @@ async function classifyPendingPdf() {
     ariaState.documentEditorSiteId = "";
     ariaState.documentEditMode = false;
     ariaState.documentEditSnapshot = null;
+    ariaState.documentEditorDirty = false;
     stopDocumentAnalysisProgress(100);
 
     await loadDocumentEditorReferences()
@@ -5097,8 +5125,20 @@ async function startDocumentEditMode() {
       );
     });
 
+  if (
+    ariaState.documentEditorNormalizationTimer
+  ) {
+    window.clearTimeout(
+      ariaState.documentEditorNormalizationTimer
+    );
+    ariaState.documentEditorNormalizationTimer =
+      null;
+  }
+
   ariaState.documentEditMode =
     true;
+  ariaState.documentEditorDirty =
+    false;
 
   renderDocumentEditorOptions();
   syncDocumentEditorValues();
@@ -5129,11 +5169,36 @@ async function finishDocumentEditMode(
     return;
   }
 
-  await normalizeEditedDocumentMetadata();
-
   if (
-    ariaState.documentEditorBusy
+    ariaState.documentEditorNormalizationTimer
   ) {
+    window.clearTimeout(
+      ariaState.documentEditorNormalizationTimer
+    );
+    ariaState.documentEditorNormalizationTimer =
+      null;
+  }
+
+  const metadata =
+    readDocumentEditorMetadata();
+
+  applyLocalDocumentEditorMetadata(
+    metadata,
+    {
+      markDirty: true,
+      saveSession: false
+    }
+  );
+
+  const saved =
+    await normalizeEditedDocumentMetadata(
+      metadata
+    );
+
+  if (!saved) {
+    getElement(
+      "document-editor-panel"
+    ).open = true;
     return;
   }
 
@@ -5141,17 +5206,20 @@ async function finishDocumentEditMode(
     false;
   ariaState.documentEditSnapshot =
     null;
+  ariaState.documentEditorDirty =
+    false;
 
   getElement(
     "document-editor-panel"
   ).open = false;
 
+  saveDocumentAnalysisSession();
   updateDocumentAnalysisInterface();
 
   setState(
     "idle",
     "Corrections enregistrées.",
-    "Le nom proposé a été recalculé avec les référentiels officiels."
+    "Les valeurs saisies sont maintenant la proposition active."
   );
 
   if (downloadAfterSave) {
@@ -5176,6 +5244,8 @@ function cancelDocumentEditMode() {
     false;
   ariaState.documentEditSnapshot =
     null;
+  ariaState.documentEditorDirty =
+    false;
 
   if (
     ariaState
@@ -5861,10 +5931,19 @@ function readDocumentEditorMetadata() {
 }
 
 function applyLocalDocumentEditorMetadata(
-  metadata
+  metadata,
+  {
+    markDirty = true,
+    saveSession = false
+  } = {}
 ) {
   ariaState.documentEditorMetadata =
     metadata;
+
+  if (markDirty) {
+    ariaState.documentEditorDirty =
+      true;
+  }
 
   if (
     ariaState.documentAnalysis
@@ -5892,7 +5971,10 @@ function applyLocalDocumentEditorMetadata(
     };
   }
 
-  saveDocumentAnalysisSession();
+  if (saveSession) {
+    saveDocumentAnalysisSession();
+  }
+
   updateDocumentAnalysisInterface();
 }
 
@@ -5915,29 +5997,26 @@ function handleDocumentEditorInput(
     return;
   }
 
-  const previous =
-    ariaState.documentEditorMetadata ||
-    {};
   let metadata =
     readDocumentEditorMetadata();
 
-  if (
+  const poleChanged =
     target.id ===
-    DOCUMENT_EDITOR_FIELD_IDS.pole
-  ) {
+      DOCUMENT_EDITOR_FIELD_IDS.pole;
+
+  const disciplineChanged =
+    target.id ===
+      DOCUMENT_EDITOR_FIELD_IDS
+        .discipline;
+
+  if (poleChanged) {
     ariaState.documentEditorSiteId =
       "";
     metadata.site = "";
-    renderEditorSiteOptions();
   }
 
-  if (
-    target.id ===
-    DOCUMENT_EDITOR_FIELD_IDS
-      .discipline
-  ) {
+  if (disciplineChanged) {
     metadata.technique = "";
-    renderEditorTechniqueOptions();
   }
 
   if (
@@ -5963,26 +6042,32 @@ function handleDocumentEditorInput(
     ) {
       metadata.pole =
         site.poleCode;
-      getElement(
-        DOCUMENT_EDITOR_FIELD_IDS.pole
-      ).value =
-        site.poleCode;
     }
   }
 
-  if (
-    target.id ===
-      DOCUMENT_EDITOR_FIELD_IDS.pole &&
-    previous.pole === metadata.pole
-  ) {
-    metadata.site =
-      previous.site || "";
+  applyLocalDocumentEditorMetadata(
+    metadata,
+    {
+      markDirty: true,
+      saveSession: false
+    }
+  );
+
+  if (poleChanged) {
+    renderEditorSiteOptions();
+    getElement(
+      DOCUMENT_EDITOR_FIELD_IDS.siteId
+    ).value = "";
   }
 
-  applyLocalDocumentEditorMetadata(
-    metadata
-  );
-  scheduleDocumentMetadataNormalization();
+  if (disciplineChanged) {
+    renderEditorTechniqueOptions();
+    getElement(
+      DOCUMENT_EDITOR_FIELD_IDS.technique
+    ).value = "";
+  }
+
+  updateDocumentEditorInterface();
 }
 
 function scheduleDocumentMetadataNormalization() {
@@ -6041,7 +6126,7 @@ async function requestDocumentMetadataNormalization(
             name: "ARIA-web",
             version:
               config.version ||
-              "1.2.0"
+              "1.3.1"
           }
         }),
         signal:
@@ -6083,25 +6168,32 @@ async function requestDocumentMetadataNormalization(
   }
 }
 
-async function normalizeEditedDocumentMetadata() {
+async function normalizeEditedDocumentMetadata(
+  metadataOverride = null
+) {
+  const metadata =
+    metadataOverride ||
+    ariaState.documentEditorMetadata;
+
   if (
     !ariaState.documentAnalysis ||
-    !ariaState.documentEditorMetadata ||
+    !metadata ||
     !ariaState.accessToken ||
     ariaState.documentEditorBusy
   ) {
-    return;
+    return false;
   }
 
   ariaState.documentEditorBusy =
     true;
   updateDocumentEditorInterface();
 
+  let success = false;
+
   try {
     const classification =
       await requestDocumentMetadataNormalization(
-        ariaState
-          .documentEditorMetadata
+        metadata
       );
 
     ariaState.documentAnalysis =
@@ -6109,9 +6201,14 @@ async function normalizeEditedDocumentMetadata() {
     ariaState.documentEditorMetadata = {
       ...classification.metadata
     };
+    ariaState.documentEditorDirty =
+      false;
 
     resolveEditorSiteIdFromMetadata();
     saveDocumentAnalysisSession();
+    success = true;
+
+    return true;
   } catch (error) {
     console.error(
       "Metadata normalization failed:",
@@ -6123,11 +6220,17 @@ async function normalizeEditedDocumentMetadata() {
       "Validation du nom impossible.",
       getReadableError(error)
     );
+
+    return false;
   } finally {
     ariaState.documentEditorBusy =
       false;
-    renderDocumentEditorOptions();
-    syncDocumentEditorValues();
+
+    if (success) {
+      renderDocumentEditorOptions();
+      syncDocumentEditorValues();
+    }
+
     updateDocumentAnalysisInterface();
   }
 }
@@ -6202,7 +6305,18 @@ function updateDocumentEditorInterface() {
     ariaState.documentEditorBusy
   ) {
     status.textContent =
-      "Validation du nom par ARIA Core…";
+      "Validation finale par ARIA Core…";
+  } else if (
+    ariaState.documentEditorDirty &&
+    missing.length > 0
+  ) {
+    status.textContent =
+      `Modifications conservées · ${missing.length} champ(s) restent à compléter.`;
+  } else if (
+    ariaState.documentEditorDirty
+  ) {
+    status.textContent =
+      "Modifications conservées localement · clique sur « Enregistrer les corrections ».";
   } else if (
     missing.length > 0
   ) {
@@ -6210,7 +6324,7 @@ function updateDocumentEditorInterface() {
       `${missing.length} champ(s) restent à compléter.`;
   } else {
     status.textContent =
-      "Nom complet et validé par les référentiels officiels.";
+      "Valeurs enregistrées et validées par les référentiels officiels.";
   }
 }
 
@@ -6249,8 +6363,6 @@ async function downloadRenamedPdf() {
   let objectUrl = "";
 
   try {
-    await normalizeEditedDocumentMetadata();
-
     if (
       !ariaState.documentAnalysis
         ?.filename_complete
@@ -6471,6 +6583,11 @@ function updateDocumentAnalysisInterface() {
     "editing",
     ariaState.documentEditMode
   );
+  card.classList.toggle(
+    "dirty",
+    ariaState.documentEditMode &&
+      ariaState.documentEditorDirty
+  );
 
   editorPanel.hidden =
     !ariaState.documentEditMode;
@@ -6657,8 +6774,13 @@ function updateDocumentAnalysisInterface() {
       });
   }
 
-  renderDocumentEditorOptions();
-  syncDocumentEditorValues();
+  if (
+    !ariaState.documentEditMode ||
+    !ariaState.documentEditorDirty
+  ) {
+    renderDocumentEditorOptions();
+    syncDocumentEditorValues();
+  }
 
   getElement(
     "document-suggested-filename"
@@ -7950,7 +8072,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.3.0").replace(/^v/, "")}`;
+    `v${String(config.version || "1.3.2").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf
