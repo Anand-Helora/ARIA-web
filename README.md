@@ -1,43 +1,15 @@
-# ARIA Web v1.3.8 — Enregistrer sous et cartes actualisées
+# ARIA Web v1.3.9 — Lien direct et commit des cartes
 
-## Bug du PDF local corrigé
+## Téléchargement
 
-Lorsqu’un ancien PDF était déjà actif, ARIA enregistrait la nouvelle référence
-locale puis supprimait l’ancien document. Cette suppression effaçait également
-la nouvelle référence locale.
+Le contrôle principal est un véritable lien HTML `a download` relié à une URL
+locale `blob:`. Le clic utilisateur agit directement sur le fichier, sans
+fonction JavaScript de téléchargement, fenêtre native ou nouvel onglet.
 
-L’ordre est maintenant :
+Après une actualisation de page, `Associer le PDF source` recrée le lien local.
 
-```text
-supprimer l’ancien PDF
-→ conserver le nouveau fichier local
-→ téléverser le nouveau PDF
-```
+## Cartes
 
-## Enregistrement
-
-Lorsque le PDF local est disponible, le bouton affiche :
-
-```text
-Enregistrer sous…
-```
-
-Sur Edge/Chrome, ARIA utilise la fenêtre native du navigateur pour choisir
-l’emplacement et le nom du fichier.
-
-Un bouton local `Enregistrer le PDF` reste disponible comme solution de secours.
-
-## Synchronisation des cartes
-
-Après l’enregistrement des corrections, ARIA remplace directement :
-
-- `document_category.code` ;
-- `document_category.label` ;
-- `summary` ;
-- `metadata` ;
-- le nom proposé ;
-- le nom de la carte PDF ;
-- le statut de la carte PDF.
-
-Les cartes sont ensuite rendues deux fois sur deux cycles d’affichage et une
-brève bordure confirme visuellement leur actualisation.
+L'enregistrement utilise un commit centralisé qui actualise les données
+primaires, le titre, le résumé, le nom proposé, la carte PDF et le lien de
+téléchargement. Une confirmation visible indique l'heure et la révision.

@@ -2625,3 +2625,29 @@ code {
       rgba(131, 230, 239, 0);
   }
 }
+
+
+/* Lien direct et commit documentaire — v1.3.9 */
+.direct-download-link {
+  display: inline-grid;
+  place-items: center;
+  min-height: 38px;
+  text-decoration: none;
+  text-align: center;
+}
+.direct-download-link[hidden] { display: none; }
+.direct-download-link.disabled {
+  pointer-events: none;
+  opacity: 0.52;
+}
+.document-card-commit-status {
+  margin: 7px 0 0;
+  padding: 7px 9px;
+  border: 1px solid rgba(131, 230, 239, 0.28);
+  border-radius: 8px;
+  color: var(--accent-soft);
+  background: rgba(4, 69, 80, 0.24);
+  font-size: 0.67rem;
+  font-weight: 700;
+}
+.document-card-commit-status[hidden] { display: none; }
