@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.3.7",
+  version: "1.3.8",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -585,7 +585,7 @@ async function requestRemoteAria(image = null, pdf = null) {
           : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "1.3.7"
+          version: config.version || "1.3.8"
         }
       }),
       signal: controller.signal
@@ -1242,11 +1242,6 @@ async function handleKnowledgePackageSelection(
   input.value = "";
 
   if (!file) return;
-
-  ariaState.pendingPdfLocalFile =
-    null;
-  ariaState.pendingPdfLocalFileValidated =
-    false;
 
   const maxBytes =
     Number(
@@ -4684,7 +4679,7 @@ async function requestDocumentClassification(
           client: {
             name: "ARIA-web",
             version:
-              config.version || "1.3.7"
+              config.version || "1.3.8"
           }
         }),
         signal: controller.signal
@@ -5251,13 +5246,61 @@ function synchronizeDocumentPresentation(
     return;
   }
 
-  analysis.presentation =
+  const metadata = {
+    ...(analysis.metadata || {}),
+    ...(ariaState
+      .documentEditorMetadata || {})
+  };
+
+  metadata.effective_type =
+    metadata.type_document ||
+    metadata.effective_type ||
+    "";
+
+  analysis.metadata =
+    metadata;
+
+  const presentation =
     buildDocumentPresentation(
       analysis,
       {
         manuallyValidated
       }
     );
+
+  analysis.presentation =
+    presentation;
+
+  // Update the primary classification fields as well.
+  // Every existing card can now read the corrected values.
+  const typeCode =
+    metadata.type_document ||
+    metadata.effective_type ||
+    analysis.document_category
+      ?.code ||
+    "";
+
+  const typeLabel =
+    getOfficialDocumentTypeLabel(
+      typeCode
+    );
+
+  analysis.document_category = {
+    ...(analysis.document_category || {}),
+    code:
+      typeCode ||
+      analysis.document_category
+        ?.code ||
+      "INCONNU",
+    label:
+      typeLabel ||
+      analysis.document_category
+        ?.label ||
+      "Document"
+  };
+
+  analysis.summary =
+    presentation.summary;
 
   if (pdf) {
     pdf.originalName =
@@ -5281,6 +5324,48 @@ function synchronizeDocumentPresentation(
   }
 
   updatePdfAttachmentInterface();
+
+  if (domReady) {
+    const attachmentCard =
+      getElement(
+        "pdf-attachment-card"
+      );
+    const analysisCard =
+      getElement(
+        "document-analysis-card"
+      );
+
+    attachmentCard.classList.remove(
+      "presentation-updated"
+    );
+    analysisCard.classList.remove(
+      "presentation-updated"
+    );
+
+    void attachmentCard.offsetWidth;
+    void analysisCard.offsetWidth;
+
+    attachmentCard.classList.add(
+      "presentation-updated"
+    );
+    analysisCard.classList.add(
+      "presentation-updated"
+    );
+  }
+
+  // Force a second render after the current DOM cycle.
+  window.requestAnimationFrame(
+    () => {
+      updateDocumentAnalysisInterface();
+      updatePdfAttachmentInterface();
+
+      window.requestAnimationFrame(
+        () => {
+          updateDocumentAnalysisInterface();
+        }
+      );
+    }
+  );
 }
 
 function deepCloneDocumentState(
@@ -6328,7 +6413,7 @@ async function requestDocumentMetadataNormalization(
             name: "ARIA-web",
             version:
               config.version ||
-              "1.3.7"
+              "1.3.8"
           }
         }),
         signal:
@@ -6611,6 +6696,25 @@ function formatDocumentDownloadSize(
   ).toFixed(1)} Mo`;
 }
 
+function createLocalPdfBlob(
+  file
+) {
+  if (
+    !(file instanceof File) ||
+    file.size <= 0
+  ) {
+    throw new Error(
+      "Le PDF source local n’est pas disponible."
+    );
+  }
+
+  return file.slice(
+    0,
+    file.size,
+    "application/pdf"
+  );
+}
+
 function showLocalPdfDownload(
   file,
   filename
@@ -6635,13 +6739,9 @@ function showLocalPdfDownload(
   revokeDocumentDownloadObjectUrl();
 
   const pdfBlob =
-    file instanceof File
-      ? file.slice(
-          0,
-          file.size,
-          "application/pdf"
-        )
-      : file;
+    createLocalPdfBlob(
+      file
+    );
 
   const objectUrl =
     URL.createObjectURL(
@@ -6670,7 +6770,7 @@ function showLocalPdfDownload(
   infoElement.textContent =
     `Copie locale : ${formatDocumentDownloadSize(
       pdfBlob.size
-    )}. Le PDF original reste inchangé.`;
+    )}. Un bouton de secours reste disponible.`;
 
   panel.hidden = false;
 
@@ -6695,7 +6795,84 @@ function showLocalPdfDownload(
   };
 }
 
-function triggerLocalPdfSave(
+async function savePdfWithNativeDialog(
+  file,
+  filename
+) {
+  const blob =
+    createLocalPdfBlob(
+      file
+    );
+
+  if (
+    typeof window.showSaveFilePicker !==
+      "function"
+  ) {
+    return {
+      saved: false,
+      unsupported: true,
+      blob
+    };
+  }
+
+  let handle;
+
+  try {
+    handle =
+      await window.showSaveFilePicker({
+        suggestedName:
+          filename,
+        types: [
+          {
+            description:
+              "Document PDF",
+            accept: {
+              "application/pdf": [
+                ".pdf"
+              ]
+            }
+          }
+        ],
+        excludeAcceptAllOption:
+          false
+      });
+  } catch (error) {
+    if (
+      error?.name ===
+        "AbortError"
+    ) {
+      return {
+        saved: false,
+        cancelled: true,
+        blob
+      };
+    }
+
+    throw error;
+  }
+
+  const writable =
+    await handle.createWritable();
+
+  try {
+    await writable.write(
+      blob
+    );
+    await writable.close();
+  } catch (error) {
+    await writable.abort()
+      .catch(() => {});
+    throw error;
+  }
+
+  return {
+    saved: true,
+    unsupported: false,
+    blob
+  };
+}
+
+function triggerAnchorPdfSave(
   file,
   filename
 ) {
@@ -6705,37 +6882,42 @@ function triggerLocalPdfSave(
       filename
     );
 
-  if (
-    typeof navigator
-      .msSaveOrOpenBlob ===
-      "function"
-  ) {
-    navigator.msSaveOrOpenBlob(
-      prepared.blob,
-      filename
-    );
-    return;
-  }
-
-  const automaticLink =
+  const link =
     document.createElement(
       "a"
     );
 
-  automaticLink.href =
+  link.href =
     prepared.objectUrl;
-  automaticLink.download =
+  link.download =
     filename;
-  automaticLink.rel =
+  link.rel =
     "noopener";
-  automaticLink.style.display =
-    "none";
+  link.style.position =
+    "fixed";
+  link.style.left =
+    "-10000px";
+  link.style.top =
+    "0";
 
   document.body.append(
-    automaticLink
+    link
   );
-  automaticLink.click();
-  automaticLink.remove();
+
+  link.dispatchEvent(
+    new MouseEvent(
+      "click",
+      {
+        bubbles: true,
+        cancelable: true,
+        view: window
+      }
+    )
+  );
+
+  link.remove();
+
+  return prepared;
 }
 
 function getValidatedLocalPdfFile() {
@@ -6753,9 +6935,16 @@ function getValidatedLocalPdfFile() {
     return null;
   }
 
+  const expectedSize =
+    Number(pdf.size);
+
   if (
+    Number.isFinite(
+      expectedSize
+    ) &&
+    expectedSize > 0 &&
     Number(file.size) !==
-    Number(pdf.size)
+      expectedSize
   ) {
     return null;
   }
@@ -6835,6 +7024,7 @@ async function handleDownloadPdfSourceSelection(
       true;
 
     updatePdfAttachmentInterface();
+    updateDocumentAnalysisInterface();
 
     const filename =
       ariaState.documentAnalysis
@@ -6854,7 +7044,7 @@ async function handleDownloadPdfSourceSelection(
     setState(
       "idle",
       "PDF source associé.",
-      "Clique sur « Enregistrer le PDF » pour créer la copie renommée."
+      "Clique maintenant sur « Enregistrer sous… »."
     );
   } catch (error) {
     ariaState.pendingPdfLocalFile =
@@ -6901,8 +7091,8 @@ async function downloadRenamedPdf(
 
     setState(
       "idle",
-      "Sélection du PDF source requise.",
-      "La page a probablement été actualisée. Sélectionne de nouveau le PDF original ; il ne sera pas téléversé une seconde fois."
+      "PDF source requis.",
+      "Sélectionne le PDF original. Après la sélection, clique une seconde fois sur « Enregistrer sous… »."
     );
 
     getElement(
@@ -6912,18 +7102,7 @@ async function downloadRenamedPdf(
   }
 
   try {
-    if (autoLaunch) {
-      triggerLocalPdfSave(
-        localFile,
-        filename
-      );
-
-      setState(
-        "idle",
-        "Téléchargement demandé.",
-        "La copie locale porte le nom validé. Le PDF original reste inchangé."
-      );
-    } else {
+    if (!autoLaunch) {
       showLocalPdfDownload(
         localFile,
         filename
@@ -6932,20 +7111,83 @@ async function downloadRenamedPdf(
       setState(
         "idle",
         "La copie locale est prête.",
-        "Clique sur « Enregistrer le PDF »."
+        "Clique sur « Enregistrer le PDF » ou utilise « Enregistrer sous… »."
+      );
+
+      updateDocumentAnalysisInterface();
+      return;
+    }
+
+    // This call happens directly inside the user's button click.
+    const nativeResult =
+      await savePdfWithNativeDialog(
+        localFile,
+        filename
+      );
+
+    if (nativeResult.saved) {
+      showLocalPdfDownload(
+        localFile,
+        filename
+      );
+
+      setState(
+        "idle",
+        "PDF enregistré.",
+        `La copie « ${filename} » a été écrite à l’emplacement choisi.`
+      );
+    } else if (
+      nativeResult.cancelled
+    ) {
+      showLocalPdfDownload(
+        localFile,
+        filename
+      );
+
+      setState(
+        "idle",
+        "Enregistrement annulé.",
+        "Le bouton de secours « Enregistrer le PDF » reste disponible."
+      );
+    } else {
+      triggerAnchorPdfSave(
+        localFile,
+        filename
+      );
+
+      setState(
+        "idle",
+        "Téléchargement demandé.",
+        "Le navigateur ne propose pas la fenêtre native. Le bouton de secours reste disponible."
       );
     }
   } catch (error) {
     console.error(
-      "Local PDF download failed:",
+      "Native PDF save failed:",
       error
     );
 
-    setState(
-      "error",
-      "Téléchargement local impossible.",
-      getReadableError(error)
-    );
+    try {
+      triggerAnchorPdfSave(
+        localFile,
+        filename
+      );
+
+      setState(
+        "idle",
+        "Méthode de secours utilisée.",
+        "Le bouton « Enregistrer le PDF » reste visible sous la carte."
+      );
+    } catch (fallbackError) {
+      setState(
+        "error",
+        "Enregistrement impossible.",
+        getReadableError(
+          fallbackError ||
+          error
+        )
+      );
+    }
   }
 
   updateDocumentAnalysisInterface();
@@ -7059,8 +7301,8 @@ function updateDocumentAnalysisInterface() {
     filenameComplete
       ? (
           hasLocalPdf
-            ? "Télécharger la copie renommée"
-            : "Sélectionner le PDF source"
+            ? "Enregistrer sous…"
+            : "Associer le PDF source"
         )
       : "Compléter le nom avant téléchargement";
 
@@ -7291,7 +7533,7 @@ function updateDocumentAnalysisInterface() {
       ? (
           analysis.presentation
             ?.manuallyValidated
-            ? "Corrections enregistrées · copie prête au téléchargement"
+            ? "Corrections enregistrées · carte actualisée"
             : "Nom complet · validation humaine recommandée"
         )
       : "Nom incomplet · ouvre « Corriger les métadonnées »";
@@ -7740,11 +7982,6 @@ async function handlePdfFileSelection(event) {
       );
     }
 
-    ariaState.pendingPdfLocalFile =
-      file;
-    ariaState.pendingPdfLocalFileValidated =
-      true;
-
     if (ariaState.pendingPdf) {
       await discardPendingPdf(false);
     }
@@ -7752,6 +7989,13 @@ async function handlePdfFileSelection(event) {
     if (ariaState.pendingImage) {
       clearPendingImage(false);
     }
+
+    // The old PDF cleanup clears the local file reference.
+    // Store the newly selected File only after that cleanup.
+    ariaState.pendingPdfLocalFile =
+      file;
+    ariaState.pendingPdfLocalFileValidated =
+      true;
 
     setState(
       "thinking",
@@ -8623,7 +8867,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.3.7").replace(/^v/, "")}`;
+    `v${String(config.version || "1.3.8").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf

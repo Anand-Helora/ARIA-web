@@ -1,32 +1,43 @@
-# ARIA Web v1.3.7 — Téléchargement local et cartes synchronisées
+# ARIA Web v1.3.8 — Enregistrer sous et cartes actualisées
 
-## Téléchargement
+## Bug du PDF local corrigé
 
-Le PDF sélectionné est maintenant conservé en mémoire dans le navigateur
-pendant la session.
+Lorsqu’un ancien PDF était déjà actif, ARIA enregistrait la nouvelle référence
+locale puis supprimait l’ancien document. Cette suppression effaçait également
+la nouvelle référence locale.
+
+L’ordre est maintenant :
 
 ```text
-Ajouter le PDF
-→ analyser
-→ corriger
-→ Télécharger la copie renommée
+supprimer l’ancien PDF
+→ conserver le nouveau fichier local
+→ téléverser le nouveau PDF
 ```
 
-Le téléchargement utilise directement le fichier local et modifie uniquement
-le nom de la copie. Aucun appel ARIA Core n’est nécessaire.
+## Enregistrement
 
-Après une actualisation de la page, le navigateur ne peut pas restaurer un
-objet `File`. ARIA demande alors de sélectionner de nouveau le PDF source. Ce
-fichier n’est pas téléversé une seconde fois : il sert uniquement à créer la
-copie locale.
+Lorsque le PDF local est disponible, le bouton affiche :
+
+```text
+Enregistrer sous…
+```
+
+Sur Edge/Chrome, ARIA utilise la fenêtre native du navigateur pour choisir
+l’emplacement et le nom du fichier.
+
+Un bouton local `Enregistrer le PDF` reste disponible comme solution de secours.
 
 ## Synchronisation des cartes
 
-Après une analyse ou l’enregistrement de corrections, ARIA actualise :
+Après l’enregistrement des corrections, ARIA remplace directement :
 
-- le titre compact ;
-- le résumé compact ;
+- `document_category.code` ;
+- `document_category.label` ;
+- `summary` ;
+- `metadata` ;
 - le nom proposé ;
-- la carte du PDF actif ;
-- le statut de validation ;
-- le libellé du bouton de téléchargement.
+- le nom de la carte PDF ;
+- le statut de la carte PDF.
+
+Les cartes sont ensuite rendues deux fois sur deux cycles d’affichage et une
+brève bordure confirme visuellement leur actualisation.
