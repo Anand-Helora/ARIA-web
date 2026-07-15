@@ -1999,3 +1999,279 @@ code {
     grid-column: auto;
   }
 }
+
+
+/* ==========================================================
+   KNOWLEDGE MANAGER v1.3
+   ========================================================== */
+
+.knowledge-manager-card {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(131, 230, 239, 0.22);
+  border-radius: 15px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(10, 35, 45, 0.82),
+      rgba(5, 22, 30, 0.90)
+    );
+}
+
+.knowledge-manager-heading,
+.knowledge-manager-item-heading,
+.knowledge-manager-form-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.knowledge-manager-heading span:first-child {
+  color: var(--accent-soft);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+}
+
+.knowledge-manager-heading h3 {
+  margin: 2px 0 0;
+}
+
+.knowledge-manager-tabs {
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.knowledge-manager-tab {
+  padding: 9px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: rgba(4, 18, 25, 0.45);
+}
+
+.knowledge-manager-tab.active {
+  border-color: rgba(131, 230, 239, 0.50);
+  color: var(--text);
+  background: rgba(131, 230, 239, 0.10);
+}
+
+.knowledge-manager-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.knowledge-manager-toolbar input,
+.knowledge-manager-form input,
+.knowledge-manager-form select,
+.knowledge-manager-form textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  outline: none;
+  color: var(--text);
+  background: rgba(4, 18, 25, 0.72);
+  font: inherit;
+  font-size: 0.76rem;
+}
+
+.knowledge-manager-list {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 3px;
+}
+
+.knowledge-manager-item {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 11px;
+  border: 1px solid rgba(157, 207, 215, 0.15);
+  border-radius: 10px;
+  background: rgba(4, 18, 25, 0.34);
+}
+
+.knowledge-manager-item.inactive {
+  opacity: 0.62;
+}
+
+.knowledge-manager-item p,
+.knowledge-manager-item small {
+  margin: 3px 0 0;
+}
+
+.knowledge-manager-item p {
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.knowledge-manager-item small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.67rem;
+}
+
+.knowledge-manager-item-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.knowledge-manager-form {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(239, 193, 119, 0.26);
+  border-radius: 12px;
+  background: rgba(59, 45, 26, 0.15);
+}
+
+.knowledge-manager-form[hidden] {
+  display: none;
+}
+
+.knowledge-manager-form label {
+  display: grid;
+  gap: 4px;
+}
+
+.knowledge-manager-form label > span {
+  color: var(--muted);
+  font-size: 0.67rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.knowledge-manager-checkbox {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.knowledge-manager-checkbox input {
+  width: auto;
+}
+
+.knowledge-manager-form-actions,
+.knowledge-manager-publish-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.knowledge-manager-history summary {
+  cursor: pointer;
+  color: var(--accent-soft);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.knowledge-import-separator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0 10px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.knowledge-import-separator::before,
+.knowledge-import-separator::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ==========================================================
+   DOCUMENT CARD EDIT MODE v1.3
+   ========================================================== */
+
+.document-editor-panel[hidden] {
+  display: none;
+}
+
+.document-analysis-card.editing {
+  border-color: rgba(239, 193, 119, 0.40);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(45, 36, 22, 0.40),
+      rgba(7, 25, 34, 0.93)
+    );
+}
+
+.document-analysis-card.editing
+.document-analysis-summary,
+.document-analysis-card.editing
+.document-filename-block,
+.document-analysis-card.editing
+.document-inline-status,
+.document-analysis-card.editing
+.document-details-panel {
+  display: none !important;
+}
+
+.document-analysis-card.editing
+.document-editor-panel {
+  display: block;
+  border-color: rgba(239, 193, 119, 0.32);
+}
+
+.document-combobox-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  gap: 5px;
+}
+
+.document-combobox-row
+.document-add-reference {
+  min-width: 0;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  font-size: 1rem;
+}
+
+.document-edit-mode-actions {
+  display: grid;
+  grid-template-columns:
+    1.2fr 1.2fr 0.8fr;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 760px) {
+  .knowledge-manager-tabs,
+  .knowledge-manager-toolbar,
+  .knowledge-manager-item,
+  .document-edit-mode-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .knowledge-manager-item-actions,
+  .knowledge-manager-form-actions,
+  .knowledge-manager-publish-actions {
+    display: grid;
+  }
+
+  .knowledge-manager-item-actions button,
+  .knowledge-manager-form-actions button,
+  .knowledge-manager-publish-actions button {
+    width: 100%;
+  }
+}

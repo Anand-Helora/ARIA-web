@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.2.0",
+  version: "1.3.0",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -79,6 +79,8 @@ const ariaState = {
   documentEditorLoadBusy: false,
   documentEditorNormalizationTimer: null,
   documentDownloadBusy: false,
+  documentEditMode: false,
+  documentEditSnapshot: null,
   pendingMemory: null,
   savedMemories: [],
   memoryBusy: false,
@@ -88,7 +90,14 @@ const ariaState = {
   knowledgeVersions: [],
   knowledgePreview: null,
   knowledgeBusy: false,
-  knowledgeUploadProgress: 0
+  knowledgeUploadProgress: 0,
+  knowledgeManager: null,
+  knowledgeManagerData: null,
+  knowledgeManagerTab: "documentTypes",
+  knowledgeManagerSearch: "",
+  knowledgeManagerEditing: null,
+  knowledgeManagerDirty: false,
+  knowledgeManagerBusy: false
 };
 
 const stateVisuals = {
@@ -283,6 +292,84 @@ function initializeInterface() {
     "click",
     clearKnowledgePreview
   );
+  getElement("knowledge-manager-types-tab").addEventListener(
+    "click",
+    () => setKnowledgeManagerTab("documentTypes")
+  );
+  getElement("knowledge-manager-disciplines-tab").addEventListener(
+    "click",
+    () => setKnowledgeManagerTab("disciplines")
+  );
+  getElement("knowledge-manager-techniques-tab").addEventListener(
+    "click",
+    () => setKnowledgeManagerTab("techniques")
+  );
+  getElement("knowledge-manager-search").addEventListener(
+    "input",
+    (event) => {
+      ariaState.knowledgeManagerSearch =
+        event.target.value || "";
+      renderKnowledgeManager();
+    }
+  );
+  getElement("knowledge-manager-add-button").addEventListener(
+    "click",
+    () => openKnowledgeManagerForm()
+  );
+  getElement("knowledge-manager-form").addEventListener(
+    "submit",
+    saveKnowledgeManagerForm
+  );
+  getElement("knowledge-manager-form-close").addEventListener(
+    "click",
+    closeKnowledgeManagerForm
+  );
+  getElement("knowledge-manager-form-cancel").addEventListener(
+    "click",
+    closeKnowledgeManagerForm
+  );
+  getElement("knowledge-manager-save-draft").addEventListener(
+    "click",
+    saveKnowledgeManagerDraft
+  );
+  getElement("knowledge-manager-publish").addEventListener(
+    "click",
+    publishKnowledgeManager
+  );
+  getElement("knowledge-manager-discard").addEventListener(
+    "click",
+    discardKnowledgeManagerDraft
+  );
+  getElement("edit-document-button").addEventListener(
+    "click",
+    startDocumentEditMode
+  );
+  getElement("document-edit-save").addEventListener(
+    "click",
+    () => finishDocumentEditMode(false)
+  );
+  getElement("document-edit-save-download").addEventListener(
+    "click",
+    () => finishDocumentEditMode(true)
+  );
+  getElement("document-edit-cancel").addEventListener(
+    "click",
+    cancelDocumentEditMode
+  );
+  for (
+    const button
+    of document.querySelectorAll(
+      ".document-add-reference"
+    )
+  ) {
+    button.addEventListener(
+      "click",
+      () =>
+        openKnowledgeManagerFromDocument(
+          button.dataset.referenceKind
+        )
+    );
+  }
 
   getElement("access-form").addEventListener("submit", saveAccessToken);
   getElement("dialog-close").addEventListener("click", closeAccessDialog);
@@ -476,7 +563,7 @@ async function requestRemoteAria(image = null, pdf = null) {
           : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "1.2.0"
+          version: config.version || "1.3.0"
         }
       }),
       signal: controller.signal
@@ -1508,6 +1595,10 @@ async function loadKnowledgeStatus() {
 
     updateKnowledgeInterface();
     updateBrainIndicator();
+
+    await loadKnowledgeManager({
+      quiet: true
+    });
   } catch (error) {
     console.error(
       "Unable to load BRAIN Knowledge:",
@@ -1906,6 +1997,1231 @@ function updateKnowledgeInterface() {
   ).disabled = busy;
 
   renderKnowledgeVersions();
+}
+
+
+function cloneKnowledgeManagerData(
+  data
+) {
+  return JSON.parse(
+    JSON.stringify(
+      data || {
+        documentTypes: [],
+        disciplines: [],
+        techniques: []
+      }
+    )
+  );
+}
+
+function normalizeManagerCodeClient(
+  value
+) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(
+      /[\u0300-\u036f]/g,
+      ""
+    )
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "")
+    .slice(0, 16);
+}
+
+function normalizeManagerLabelClient(
+  value
+) {
+  return String(value || "")
+    .normalize("NFC")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 160);
+}
+
+function parseManagerAliases(
+  value
+) {
+  return [
+    ...new Set(
+      String(value || "")
+        .split(",")
+        .map(
+          (alias) =>
+            alias
+              .normalize("NFC")
+              .replace(/\s+/g, " ")
+              .trim()
+              .toLowerCase()
+        )
+        .filter(Boolean)
+    )
+  ].slice(0, 30);
+}
+
+async function loadKnowledgeManager({
+  quiet = false
+} = {}) {
+  if (
+    ariaState.knowledgeManagerBusy ||
+    !ariaState.accessToken
+  ) {
+    return;
+  }
+
+  ariaState.knowledgeManagerBusy =
+    true;
+
+  if (!quiet) {
+    getElement(
+      "knowledge-manager-status"
+    ).textContent =
+      "Chargement du Knowledge Manager…";
+  }
+
+  updateKnowledgeManagerInterface();
+
+  try {
+    const result =
+      await knowledgeApiRequest(
+        "POST",
+        {
+          action:
+            "manager_get"
+        }
+      );
+
+    ariaState.knowledgeManager =
+      result.manager || null;
+    ariaState.knowledgeManagerData =
+      cloneKnowledgeManagerData(
+        result.manager?.data
+      );
+    ariaState.knowledgeManagerDirty =
+      false;
+    ariaState.knowledgeManagerEditing =
+      null;
+
+    getElement(
+      "knowledge-manager-status"
+    ).textContent =
+      result.manager?.hasDraft
+        ? "Un brouillon enregistré est chargé. Publie-le après contrôle."
+        : "Les valeurs publiées sont chargées. Les modifications restent locales jusqu’à l’enregistrement du brouillon.";
+
+    renderKnowledgeManager();
+  } catch (error) {
+    getElement(
+      "knowledge-manager-status"
+    ).textContent =
+      getReadableError(error);
+
+    if (!quiet) {
+      setState(
+        "error",
+        "Knowledge Manager indisponible.",
+        getReadableError(error)
+      );
+    }
+  } finally {
+    ariaState.knowledgeManagerBusy =
+      false;
+    updateKnowledgeManagerInterface();
+  }
+}
+
+function setKnowledgeManagerTab(
+  tab
+) {
+  const allowed = [
+    "documentTypes",
+    "disciplines",
+    "techniques"
+  ];
+
+  ariaState.knowledgeManagerTab =
+    allowed.includes(tab)
+      ? tab
+      : "documentTypes";
+  ariaState.knowledgeManagerEditing =
+    null;
+  closeKnowledgeManagerForm();
+  renderKnowledgeManager();
+}
+
+function getKnowledgeManagerCollection() {
+  return (
+    ariaState.knowledgeManagerData?.[
+      ariaState.knowledgeManagerTab
+    ] || []
+  );
+}
+
+function getKnowledgeManagerRecordKey(
+  record,
+  tab = ariaState
+    .knowledgeManagerTab
+) {
+  if (tab === "techniques") {
+    return `${record.disciplineCode}:${record.code}`;
+  }
+
+  return record.code;
+}
+
+function getKnowledgeManagerTabLabel(
+  tab = ariaState
+    .knowledgeManagerTab
+) {
+  const labels = {
+    documentTypes:
+      "type de document",
+    disciplines:
+      "discipline",
+    techniques:
+      "technique"
+  };
+
+  return labels[tab] || "valeur";
+}
+
+function setKnowledgeManagerFormValues(
+  record = null,
+  preset = null
+) {
+  const tab =
+    ariaState.knowledgeManagerTab;
+  const source = {
+    ...(record || {}),
+    ...(preset || {})
+  };
+
+  getElement(
+    "knowledge-manager-code"
+  ).value =
+    source.code || "";
+
+  getElement(
+    "knowledge-manager-label"
+  ).value =
+    source.label || "";
+
+  getElement(
+    "knowledge-manager-aliases"
+  ).value =
+    Array.isArray(source.aliases)
+      ? source.aliases.join(", ")
+      : "";
+
+  getElement(
+    "knowledge-manager-active"
+  ).checked =
+    source.active !== false;
+
+  const disciplineRow =
+    getElement(
+      "knowledge-manager-discipline-row"
+    );
+  const aliasesRow =
+    getElement(
+      "knowledge-manager-aliases-row"
+    );
+  const parent =
+    getElement(
+      "knowledge-manager-parent-discipline"
+    );
+
+  disciplineRow.hidden =
+    tab !== "techniques";
+  aliasesRow.hidden =
+    tab === "disciplines";
+
+  parent.replaceChildren(
+    createSelectOption(
+      "",
+      "Sélectionner"
+    ),
+    ...(
+      ariaState
+        .knowledgeManagerData
+        ?.disciplines || []
+    ).map(
+      (discipline) =>
+        createSelectOption(
+          discipline.code,
+          `${discipline.code} — ${discipline.label}`,
+          discipline.code ===
+            source.disciplineCode
+        )
+    )
+  );
+}
+
+function openKnowledgeManagerForm(
+  record = null,
+  preset = null
+) {
+  if (
+    !ariaState.knowledgeManagerData
+  ) {
+    loadKnowledgeManager();
+    return;
+  }
+
+  ariaState.knowledgeManagerEditing =
+    record
+      ? {
+          tab:
+            ariaState
+              .knowledgeManagerTab,
+          key:
+            getKnowledgeManagerRecordKey(
+              record
+            )
+        }
+      : null;
+
+  getElement(
+    "knowledge-manager-form-title"
+  ).textContent =
+    record
+      ? `Modifier ce ${getKnowledgeManagerTabLabel()}`
+      : `Ajouter un ${getKnowledgeManagerTabLabel()}`;
+
+  setKnowledgeManagerFormValues(
+    record,
+    preset
+  );
+
+  const codeInput =
+    getElement(
+      "knowledge-manager-code"
+    );
+  codeInput.disabled =
+    Boolean(record);
+
+  getElement(
+    "knowledge-manager-form"
+  ).hidden = false;
+
+  window.requestAnimationFrame(
+    () => {
+      getElement(
+        record
+          ? "knowledge-manager-label"
+          : "knowledge-manager-code"
+      ).focus();
+    }
+  );
+}
+
+function closeKnowledgeManagerForm() {
+  if (!domReady) return;
+
+  const form =
+    getElement(
+      "knowledge-manager-form"
+    );
+  form.hidden = true;
+  form.reset();
+
+  getElement(
+    "knowledge-manager-code"
+  ).disabled = false;
+
+  ariaState.knowledgeManagerEditing =
+    null;
+}
+
+function saveKnowledgeManagerForm(
+  event
+) {
+  event.preventDefault();
+
+  const tab =
+    ariaState.knowledgeManagerTab;
+  const collection =
+    getKnowledgeManagerCollection();
+  const code =
+    normalizeManagerCodeClient(
+      getElement(
+        "knowledge-manager-code"
+      ).value
+    );
+  const label =
+    normalizeManagerLabelClient(
+      getElement(
+        "knowledge-manager-label"
+      ).value
+    );
+  const active =
+    getElement(
+      "knowledge-manager-active"
+    ).checked;
+  const aliases =
+    parseManagerAliases(
+      getElement(
+        "knowledge-manager-aliases"
+      ).value
+    );
+
+  if (!code || !label) {
+    setState(
+      "error",
+      "Valeur incomplète.",
+      "Le code et le libellé sont obligatoires."
+    );
+    return;
+  }
+
+  let record = {
+    code,
+    label,
+    active
+  };
+
+  if (tab !== "disciplines") {
+    record.aliases =
+      aliases;
+  }
+
+  if (tab === "techniques") {
+    const disciplineCode =
+      getElement(
+        "knowledge-manager-parent-discipline"
+      ).value;
+
+    if (!disciplineCode) {
+      setState(
+        "error",
+        "Discipline obligatoire.",
+        "Sélectionne la discipline parente de la technique."
+      );
+      return;
+    }
+
+    record.disciplineCode =
+      disciplineCode;
+  }
+
+  const editing =
+    ariaState.knowledgeManagerEditing;
+  const key =
+    getKnowledgeManagerRecordKey(
+      record,
+      tab
+    );
+
+  const duplicate = collection.find(
+    (item) =>
+      getKnowledgeManagerRecordKey(
+        item,
+        tab
+      ) === key &&
+      (
+        !editing ||
+        getKnowledgeManagerRecordKey(
+          item,
+          tab
+        ) !== editing.key
+      )
+  );
+
+  if (duplicate) {
+    setState(
+      "error",
+      "Code déjà utilisé.",
+      `La valeur ${key} existe déjà dans le brouillon.`
+    );
+    return;
+  }
+
+  if (editing) {
+    const index =
+      collection.findIndex(
+        (item) =>
+          getKnowledgeManagerRecordKey(
+            item,
+            tab
+          ) === editing.key
+      );
+
+    if (index >= 0) {
+      collection[index] =
+        record;
+    }
+  } else {
+    collection.push(record);
+  }
+
+  collection.sort(
+    (a, b) =>
+      getKnowledgeManagerRecordKey(
+        a,
+        tab
+      ).localeCompare(
+        getKnowledgeManagerRecordKey(
+          b,
+          tab
+        ),
+        "fr"
+      )
+  );
+
+  ariaState.knowledgeManagerDirty =
+    true;
+  closeKnowledgeManagerForm();
+  renderKnowledgeManager();
+
+  getElement(
+    "knowledge-manager-status"
+  ).textContent =
+    "Modification locale prête. Enregistre le brouillon puis publie-le.";
+}
+
+function toggleKnowledgeManagerRecord(
+  record
+) {
+  record.active =
+    record.active === false;
+  ariaState.knowledgeManagerDirty =
+    true;
+  renderKnowledgeManager();
+}
+
+function renderKnowledgeManagerRecord(
+  record
+) {
+  const article =
+    document.createElement(
+      "article"
+    );
+  article.className =
+    "knowledge-manager-item";
+  article.classList.toggle(
+    "inactive",
+    record.active === false
+  );
+
+  const copy =
+    document.createElement(
+      "div"
+    );
+
+  const heading =
+    document.createElement(
+      "div"
+    );
+  heading.className =
+    "knowledge-manager-item-heading";
+
+  const code =
+    document.createElement(
+      "strong"
+    );
+  code.textContent =
+    ariaState.knowledgeManagerTab ===
+      "techniques"
+      ? `${record.disciplineCode}-${record.code}`
+      : record.code;
+
+  const badge =
+    document.createElement(
+      "span"
+    );
+  badge.className =
+    "knowledge-status-badge";
+  badge.classList.toggle(
+    "active",
+    record.active !== false
+  );
+  badge.textContent =
+    record.active !== false
+      ? "Actif"
+      : "Inactif";
+
+  heading.append(
+    code,
+    badge
+  );
+
+  const label =
+    document.createElement(
+      "p"
+    );
+  label.textContent =
+    record.label;
+
+  const aliases =
+    document.createElement(
+      "small"
+    );
+  aliases.textContent =
+    Array.isArray(
+      record.aliases
+    ) &&
+    record.aliases.length > 0
+      ? `Alias : ${record.aliases.join(", ")}`
+      : "Aucun alias";
+
+  copy.append(
+    heading,
+    label,
+    aliases
+  );
+
+  const actions =
+    document.createElement(
+      "div"
+    );
+  actions.className =
+    "knowledge-manager-item-actions";
+
+  const edit =
+    document.createElement(
+      "button"
+    );
+  edit.type = "button";
+  edit.className =
+    "secondary compact";
+  edit.textContent =
+    "Modifier";
+  edit.addEventListener(
+    "click",
+    () =>
+      openKnowledgeManagerForm(
+        record
+      )
+  );
+
+  const toggle =
+    document.createElement(
+      "button"
+    );
+  toggle.type = "button";
+  toggle.className =
+    "secondary compact";
+  toggle.textContent =
+    record.active !== false
+      ? "Désactiver"
+      : "Réactiver";
+  toggle.addEventListener(
+    "click",
+    () =>
+      toggleKnowledgeManagerRecord(
+        record
+      )
+  );
+
+  actions.append(
+    edit,
+    toggle
+  );
+
+  article.append(
+    copy,
+    actions
+  );
+
+  return article;
+}
+
+function renderKnowledgeManagerHistory() {
+  const container =
+    getElement(
+      "knowledge-manager-history-list"
+    );
+  container.replaceChildren();
+
+  const history =
+    ariaState.knowledgeManager
+      ?.history || [];
+
+  if (history.length === 0) {
+    const empty =
+      document.createElement(
+        "p"
+      );
+    empty.className =
+      "knowledge-empty-state";
+    empty.textContent =
+      "Aucune publication du gestionnaire.";
+    container.append(empty);
+    return;
+  }
+
+  for (const version of history) {
+    const article =
+      document.createElement(
+        "article"
+      );
+    article.className =
+      "knowledge-version-item";
+
+    const copy =
+      document.createElement(
+        "div"
+      );
+    const title =
+      document.createElement(
+        "strong"
+      );
+    title.textContent =
+      `Révision ${version.revision}`;
+    const meta =
+      document.createElement(
+        "p"
+      );
+    meta.textContent = [
+      `${version.counts?.documentTypes || 0} types`,
+      `${version.counts?.disciplines || 0} disciplines`,
+      `${version.counts?.techniques || 0} techniques`,
+      version.publishedAt
+        ? new Intl.DateTimeFormat(
+            "fr-BE",
+            {
+              dateStyle:
+                "medium",
+              timeStyle:
+                "short"
+            }
+          ).format(
+            new Date(
+              version.publishedAt
+            )
+          )
+        : ""
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
+    copy.append(
+      title,
+      meta
+    );
+
+    const restore =
+      document.createElement(
+        "button"
+      );
+    restore.type = "button";
+    restore.className =
+      "secondary compact";
+    restore.textContent =
+      "Restaurer en brouillon";
+    restore.disabled =
+      ariaState.knowledgeManagerBusy;
+    restore.addEventListener(
+      "click",
+      () =>
+        restoreKnowledgeManagerRevision(
+          version.revision
+        )
+    );
+
+    article.append(
+      copy,
+      restore
+    );
+    container.append(article);
+  }
+}
+
+function renderKnowledgeManager() {
+  if (!domReady) return;
+
+  const list =
+    getElement(
+      "knowledge-manager-list"
+    );
+  list.replaceChildren();
+
+  const data =
+    ariaState.knowledgeManagerData;
+  const manager =
+    ariaState.knowledgeManager;
+
+  getElement(
+    "knowledge-manager-revision"
+  ).textContent =
+    manager
+      ? `Révision ${manager.activeRevision || 0}${manager.hasDraft ? " · brouillon" : ""}`
+      : "Non chargé";
+
+  for (
+    const button
+    of document.querySelectorAll(
+      ".knowledge-manager-tab"
+    )
+  ) {
+    button.classList.toggle(
+      "active",
+      button.dataset.managerTab ===
+        ariaState.knowledgeManagerTab
+    );
+  }
+
+  if (!data) {
+    const empty =
+      document.createElement(
+        "p"
+      );
+    empty.className =
+      "knowledge-empty-state";
+    empty.textContent =
+      "Charge le Knowledge Manager pour afficher les valeurs.";
+    list.append(empty);
+    renderKnowledgeManagerHistory();
+    updateKnowledgeManagerInterface();
+    return;
+  }
+
+  const query =
+    ariaState.knowledgeManagerSearch
+      .normalize("NFD")
+      .replace(
+        /[\u0300-\u036f]/g,
+        ""
+      )
+      .toLowerCase()
+      .trim();
+
+  const records =
+    getKnowledgeManagerCollection()
+      .filter((record) => {
+        if (!query) return true;
+
+        return [
+          record.code,
+          record.label,
+          record.disciplineCode,
+          ...(record.aliases || [])
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .normalize("NFD")
+          .replace(
+            /[\u0300-\u036f]/g,
+            ""
+          )
+          .toLowerCase()
+          .includes(query);
+      });
+
+  if (records.length === 0) {
+    const empty =
+      document.createElement(
+        "p"
+      );
+    empty.className =
+      "knowledge-empty-state";
+    empty.textContent =
+      "Aucune valeur ne correspond à cette recherche.";
+    list.append(empty);
+  } else {
+    for (const record of records) {
+      list.append(
+        renderKnowledgeManagerRecord(
+          record
+        )
+      );
+    }
+  }
+
+  renderKnowledgeManagerHistory();
+  updateKnowledgeManagerInterface();
+}
+
+function updateKnowledgeManagerInterface() {
+  if (!domReady) return;
+
+  const disabled =
+    ariaState.knowledgeManagerBusy ||
+    ariaState.knowledgeBusy;
+
+  getElement(
+    "knowledge-manager-add-button"
+  ).disabled =
+    disabled ||
+    !ariaState.knowledgeManagerData;
+
+  getElement(
+    "knowledge-manager-save-draft"
+  ).disabled =
+    disabled ||
+    !ariaState.knowledgeManagerData ||
+    !ariaState.knowledgeManagerDirty;
+
+  getElement(
+    "knowledge-manager-publish"
+  ).disabled =
+    disabled ||
+    !ariaState.knowledgeManager ||
+    (
+      !ariaState.knowledgeManager.hasDraft &&
+      !ariaState.knowledgeManagerDirty
+    );
+
+  getElement(
+    "knowledge-manager-discard"
+  ).disabled =
+    disabled ||
+    !ariaState.knowledgeManager
+      ?.hasDraft;
+
+  getElement(
+    "knowledge-manager-search"
+  ).disabled =
+    disabled ||
+    !ariaState.knowledgeManagerData;
+}
+
+async function saveKnowledgeManagerDraft({
+  quiet = false
+} = {}) {
+  if (
+    !ariaState.knowledgeManagerData ||
+    ariaState.knowledgeManagerBusy
+  ) {
+    return false;
+  }
+
+  ariaState.knowledgeManagerBusy =
+    true;
+  updateKnowledgeManagerInterface();
+
+  try {
+    const result =
+      await knowledgeApiRequest(
+        "POST",
+        {
+          action:
+            "manager_save_draft",
+          expectedRevision:
+            ariaState.knowledgeManager
+              ?.activeRevision || 0,
+          data:
+            ariaState.knowledgeManagerData
+        }
+      );
+
+    ariaState.knowledgeManager =
+      result.manager;
+    ariaState.knowledgeManagerData =
+      cloneKnowledgeManagerData(
+        result.manager?.data
+      );
+    ariaState.knowledgeManagerDirty =
+      false;
+
+    getElement(
+      "knowledge-manager-status"
+    ).textContent =
+      "Brouillon enregistré dans le stockage privé.";
+
+    if (!quiet) {
+      setState(
+        "idle",
+        "Brouillon Knowledge enregistré.",
+        "Il n’est pas encore utilisé par le classificateur."
+      );
+    }
+
+    renderKnowledgeManager();
+    return true;
+  } catch (error) {
+    setState(
+      "error",
+      "Enregistrement impossible.",
+      getReadableError(error)
+    );
+    return false;
+  } finally {
+    ariaState.knowledgeManagerBusy =
+      false;
+    updateKnowledgeManagerInterface();
+  }
+}
+
+async function publishKnowledgeManager() {
+  if (
+    !ariaState.knowledgeManager ||
+    ariaState.knowledgeManagerBusy
+  ) {
+    return;
+  }
+
+  if (
+    !window.confirm(
+      "Publier ces valeurs comme référentiel officiel actif ?"
+    )
+  ) {
+    return;
+  }
+
+  if (
+    ariaState.knowledgeManagerDirty
+  ) {
+    const saved =
+      await saveKnowledgeManagerDraft({
+        quiet: true
+      });
+
+    if (!saved) return;
+  }
+
+  ariaState.knowledgeManagerBusy =
+    true;
+  updateKnowledgeManagerInterface();
+
+  try {
+    const result =
+      await knowledgeApiRequest(
+        "POST",
+        {
+          action:
+            "manager_publish",
+          expectedRevision:
+            ariaState.knowledgeManager
+              ?.activeRevision || 0
+        }
+      );
+
+    ariaState.knowledgeManager =
+      result.manager;
+    ariaState.knowledgeManagerData =
+      cloneKnowledgeManagerData(
+        result.manager?.data
+      );
+    ariaState.knowledgeManagerDirty =
+      false;
+
+    if (result.status) {
+      ariaState.knowledgeStatus =
+        result.status;
+      ariaState.knowledgeVersions =
+        Array.isArray(
+          result.status?.versions
+        )
+          ? result.status.versions
+          : [];
+    }
+
+    ariaState.documentEditorReferences =
+      null;
+
+    if (
+      ariaState.documentAnalysis
+    ) {
+      await loadDocumentEditorReferences();
+      renderDocumentEditorOptions();
+      syncDocumentEditorValues();
+    }
+
+    getElement(
+      "knowledge-manager-status"
+    ).textContent =
+      `Révision ${result.manager.activeRevision} publiée et immédiatement active.`;
+
+    setState(
+      "idle",
+      "Référentiel publié.",
+      "Le classificateur et les combobox utilisent maintenant cette révision."
+    );
+
+    updateKnowledgeInterface();
+    updateBrainIndicator();
+    renderKnowledgeManager();
+  } catch (error) {
+    setState(
+      "error",
+      "Publication impossible.",
+      getReadableError(error)
+    );
+  } finally {
+    ariaState.knowledgeManagerBusy =
+      false;
+    updateKnowledgeManagerInterface();
+  }
+}
+
+async function discardKnowledgeManagerDraft() {
+  if (
+    !ariaState.knowledgeManager
+      ?.hasDraft ||
+    ariaState.knowledgeManagerBusy
+  ) {
+    return;
+  }
+
+  if (
+    !window.confirm(
+      "Abandonner le brouillon enregistré et revenir aux valeurs publiées ?"
+    )
+  ) {
+    return;
+  }
+
+  ariaState.knowledgeManagerBusy =
+    true;
+  updateKnowledgeManagerInterface();
+
+  try {
+    const result =
+      await knowledgeApiRequest(
+        "POST",
+        {
+          action:
+            "manager_discard"
+        }
+      );
+
+    ariaState.knowledgeManager =
+      result.manager;
+    ariaState.knowledgeManagerData =
+      cloneKnowledgeManagerData(
+        result.manager?.data
+      );
+    ariaState.knowledgeManagerDirty =
+      false;
+
+    getElement(
+      "knowledge-manager-status"
+    ).textContent =
+      "Brouillon abandonné.";
+
+    renderKnowledgeManager();
+  } catch (error) {
+    setState(
+      "error",
+      "Abandon impossible.",
+      getReadableError(error)
+    );
+  } finally {
+    ariaState.knowledgeManagerBusy =
+      false;
+    updateKnowledgeManagerInterface();
+  }
+}
+
+async function restoreKnowledgeManagerRevision(
+  revision
+) {
+  if (
+    ariaState.knowledgeManagerBusy
+  ) {
+    return;
+  }
+
+  if (
+    !window.confirm(
+      `Restaurer la révision ${revision} dans un nouveau brouillon ?`
+    )
+  ) {
+    return;
+  }
+
+  ariaState.knowledgeManagerBusy =
+    true;
+  updateKnowledgeManagerInterface();
+
+  try {
+    const result =
+      await knowledgeApiRequest(
+        "POST",
+        {
+          action:
+            "manager_restore",
+          revision
+        }
+      );
+
+    ariaState.knowledgeManager =
+      result.manager;
+    ariaState.knowledgeManagerData =
+      cloneKnowledgeManagerData(
+        result.manager?.data
+      );
+    ariaState.knowledgeManagerDirty =
+      false;
+
+    getElement(
+      "knowledge-manager-status"
+    ).textContent =
+      `La révision ${revision} est chargée comme brouillon.`;
+
+    renderKnowledgeManager();
+  } catch (error) {
+    setState(
+      "error",
+      "Restauration impossible.",
+      getReadableError(error)
+    );
+  } finally {
+    ariaState.knowledgeManagerBusy =
+      false;
+    updateKnowledgeManagerInterface();
+  }
+}
+
+async function openKnowledgeManagerFromDocument(
+  kind
+) {
+  const allowed = [
+    "documentTypes",
+    "disciplines",
+    "techniques"
+  ];
+
+  if (!allowed.includes(kind)) {
+    return;
+  }
+
+  const dialog =
+    getElement(
+      "brain-dialog"
+    );
+
+  if (
+    typeof dialog.showModal ===
+      "function" &&
+    !dialog.open
+  ) {
+    dialog.showModal();
+  }
+
+  setBrainTab("knowledge");
+
+  if (
+    !ariaState.knowledgeManagerData
+  ) {
+    await loadKnowledgeManager();
+  }
+
+  setKnowledgeManagerTab(kind);
+
+  const metadata =
+    ariaState.documentEditorMetadata ||
+    {};
+
+  const preset = {
+    code:
+      kind === "documentTypes"
+        ? metadata.type_document
+        : kind === "disciplines"
+          ? metadata.discipline
+          : metadata.technique,
+    label: "",
+    disciplineCode:
+      kind === "techniques"
+        ? metadata.discipline
+        : undefined,
+    active: true
+  };
+
+  openKnowledgeManagerForm(
+    null,
+    preset
+  );
 }
 
 function getMemoryCategoryLabel(category) {
@@ -3218,6 +4534,8 @@ function clearDocumentAnalysis(
   ariaState.documentEditorSiteId = "";
   ariaState.documentEditorBusy = false;
   ariaState.documentDownloadBusy = false;
+  ariaState.documentEditMode = false;
+  ariaState.documentEditSnapshot = null;
 
   if (
     ariaState.documentEditorNormalizationTimer
@@ -3274,7 +4592,7 @@ async function requestDocumentClassification(
           client: {
             name: "ARIA-web",
             version:
-              config.version || "1.2.0"
+              config.version || "1.3.0"
           }
         }),
         signal: controller.signal
@@ -3547,6 +4865,8 @@ async function classifyPendingPdf() {
       ...classification.metadata
     };
     ariaState.documentEditorSiteId = "";
+    ariaState.documentEditMode = false;
+    ariaState.documentEditSnapshot = null;
     stopDocumentAnalysisProgress(100);
 
     await loadDocumentEditorReferences()
@@ -3735,6 +5055,157 @@ function setElementDisplayed(
   }
 }
 
+
+
+function deepCloneDocumentState(
+  value
+) {
+  return JSON.parse(
+    JSON.stringify(value)
+  );
+}
+
+async function startDocumentEditMode() {
+  if (
+    !ariaState.documentAnalysis ||
+    ariaState.documentEditorBusy
+  ) {
+    return;
+  }
+
+  ariaState.documentEditSnapshot = {
+    analysis:
+      deepCloneDocumentState(
+        ariaState.documentAnalysis
+      ),
+    metadata:
+      deepCloneDocumentState(
+        ariaState.documentEditorMetadata ||
+        ariaState.documentAnalysis
+          .metadata
+      ),
+    siteId:
+      ariaState.documentEditorSiteId
+  };
+
+  await loadDocumentEditorReferences()
+    .catch((error) => {
+      setState(
+        "error",
+        "Référentiels indisponibles.",
+        getReadableError(error)
+      );
+    });
+
+  ariaState.documentEditMode =
+    true;
+
+  renderDocumentEditorOptions();
+  syncDocumentEditorValues();
+  updateDocumentAnalysisInterface();
+
+  const panel =
+    getElement(
+      "document-editor-panel"
+    );
+  panel.open = true;
+
+  window.requestAnimationFrame(
+    () =>
+      panel.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest"
+      })
+  );
+}
+
+async function finishDocumentEditMode(
+  downloadAfterSave = false
+) {
+  if (
+    !ariaState.documentEditMode ||
+    ariaState.documentEditorBusy
+  ) {
+    return;
+  }
+
+  await normalizeEditedDocumentMetadata();
+
+  if (
+    ariaState.documentEditorBusy
+  ) {
+    return;
+  }
+
+  ariaState.documentEditMode =
+    false;
+  ariaState.documentEditSnapshot =
+    null;
+
+  getElement(
+    "document-editor-panel"
+  ).open = false;
+
+  updateDocumentAnalysisInterface();
+
+  setState(
+    "idle",
+    "Corrections enregistrées.",
+    "Le nom proposé a été recalculé avec les référentiels officiels."
+  );
+
+  if (downloadAfterSave) {
+    await downloadRenamedPdf();
+  }
+}
+
+function cancelDocumentEditMode() {
+  const snapshot =
+    ariaState.documentEditSnapshot;
+
+  if (snapshot) {
+    ariaState.documentAnalysis =
+      snapshot.analysis;
+    ariaState.documentEditorMetadata =
+      snapshot.metadata;
+    ariaState.documentEditorSiteId =
+      snapshot.siteId;
+  }
+
+  ariaState.documentEditMode =
+    false;
+  ariaState.documentEditSnapshot =
+    null;
+
+  if (
+    ariaState
+      .documentEditorNormalizationTimer
+  ) {
+    window.clearTimeout(
+      ariaState
+        .documentEditorNormalizationTimer
+    );
+    ariaState
+      .documentEditorNormalizationTimer =
+        null;
+  }
+
+  renderDocumentEditorOptions();
+  syncDocumentEditorValues();
+
+  getElement(
+    "document-editor-panel"
+  ).open = false;
+
+  saveDocumentAnalysisSession();
+  updateDocumentAnalysisInterface();
+
+  setState(
+    "idle",
+    "Modifications annulées.",
+    "La proposition précédente a été restaurée."
+  );
+}
 
 const DOCUMENT_EDITOR_FIELD_IDS =
   Object.freeze({
@@ -4097,50 +5568,44 @@ function renderDocumentEditorOptions() {
     )
   );
 
-  const typeSelect =
+  const typeList =
     getElement(
-      DOCUMENT_EDITOR_FIELD_IDS
-        .type_document
+      "document-type-options"
     );
-  typeSelect.replaceChildren(
-    createSelectOption(
-      "",
-      "À compléter"
-    ),
+  typeList.replaceChildren(
     ...references
       .documentTypes
-      .map(
-        (type) =>
-          createSelectOption(
-            type.code,
-            `${type.code} — ${type.label}`,
-            type.code ===
-              metadata.type_document
-          )
-      )
+      .map((type) => {
+        const option =
+          document.createElement(
+            "option"
+          );
+        option.value =
+          type.code;
+        option.label =
+          type.label;
+        return option;
+      })
   );
 
-  const disciplineSelect =
+  const disciplineList =
     getElement(
-      DOCUMENT_EDITOR_FIELD_IDS
-        .discipline
+      "document-discipline-options"
     );
-  disciplineSelect.replaceChildren(
-    createSelectOption(
-      "",
-      "À compléter"
-    ),
+  disciplineList.replaceChildren(
     ...references
       .disciplines
-      .map(
-        (discipline) =>
-          createSelectOption(
-            discipline.code,
-            `${discipline.code} — ${discipline.label}`,
-            discipline.code ===
-              metadata.discipline
-          )
-      )
+      .map((discipline) => {
+        const option =
+          document.createElement(
+            "option"
+          );
+        option.value =
+          discipline.code;
+        option.label =
+          discipline.label;
+        return option;
+      })
   );
 
   renderEditorSiteOptions();
@@ -4204,29 +5669,26 @@ function renderEditorTechniqueOptions() {
   const metadata =
     ariaState.documentEditorMetadata ||
     {};
-  const select = getElement(
-    DOCUMENT_EDITOR_FIELD_IDS
-      .technique
+  const list = getElement(
+    "document-technique-options"
   );
   const pairs =
     getEditorTechniquesForDiscipline(
       metadata.discipline
     );
 
-  select.replaceChildren(
-    createSelectOption(
-      "",
-      "À compléter"
-    ),
-    ...pairs.map(
-      (pair) =>
-        createSelectOption(
-          pair.techniqueCode,
-          `${pair.techniqueCode} — ${pair.techniqueLabel}`,
-          pair.techniqueCode ===
-            metadata.technique
-        )
-    )
+  list.replaceChildren(
+    ...pairs.map((pair) => {
+      const option =
+        document.createElement(
+          "option"
+        );
+      option.value =
+        pair.techniqueCode;
+      option.label =
+        pair.techniqueLabel;
+      return option;
+    })
   );
 }
 
@@ -4354,20 +5816,29 @@ function readDocumentEditorMetadata() {
         ).value
       ),
     type_document:
-      getElement(
-        DOCUMENT_EDITOR_FIELD_IDS
-          .type_document
-      ).value,
+      normalizeEditorCode(
+        getElement(
+          DOCUMENT_EDITOR_FIELD_IDS
+            .type_document
+        ).value,
+        16
+      ),
     discipline:
-      getElement(
-        DOCUMENT_EDITOR_FIELD_IDS
-          .discipline
-      ).value,
+      normalizeEditorCode(
+        getElement(
+          DOCUMENT_EDITOR_FIELD_IDS
+            .discipline
+        ).value,
+        16
+      ),
     technique:
-      getElement(
-        DOCUMENT_EDITOR_FIELD_IDS
-          .technique
-      ).value,
+      normalizeEditorCode(
+        getElement(
+          DOCUMENT_EDITOR_FIELD_IDS
+            .technique
+        ).value,
+        16
+      ),
     indice:
       normalizeEditorCode(
         getElement(
@@ -4430,6 +5901,7 @@ function handleDocumentEditorInput(
 ) {
   if (
     !ariaState.documentAnalysis ||
+    !ariaState.documentEditMode ||
     ariaState.documentEditorBusy
   ) {
     return;
@@ -4692,7 +6164,8 @@ function updateDocumentEditorInterface() {
 
   form.hidden =
     !hasAnalysis ||
-    !referencesReady;
+    !referencesReady ||
+    !ariaState.documentEditMode;
 
   for (
     const element
@@ -4917,6 +6390,9 @@ function updateDocumentAnalysisInterface() {
   const validationLabel = getElement(
     "document-filename-validation"
   );
+  const editButton = getElement(
+    "edit-document-button"
+  );
   const successBlock = getElement(
     "document-analysis-success"
   );
@@ -4981,6 +6457,23 @@ function updateDocumentAnalysisInterface() {
       : filenameComplete
         ? "Télécharger la copie renommée"
         : "Compléter le nom avant téléchargement";
+
+  editButton.disabled =
+    !analysis ||
+    ariaState.documentEditorBusy ||
+    ariaState.documentDownloadBusy;
+  editButton.textContent =
+    ariaState.documentEditMode
+      ? "Édition en cours"
+      : "Éditer";
+
+  card.classList.toggle(
+    "editing",
+    ariaState.documentEditMode
+  );
+
+  editorPanel.hidden =
+    !ariaState.documentEditMode;
 
   setElementDisplayed(
     emptyState,
@@ -5113,9 +6606,13 @@ function updateDocumentAnalysisInterface() {
   getElement(
     "document-analysis-title"
   ).textContent =
-    category.label ||
-    category.code ||
-    "Classement du PDF";
+    ariaState.documentEditMode
+      ? "Édition du classement"
+      : (
+          category.label ||
+          category.code ||
+          "Classement du PDF"
+        );
 
   confidenceBadge.textContent =
     `Confiance ${confidencePercent} %`;
@@ -5273,6 +6770,24 @@ function updateDocumentAnalysisInterface() {
     controlCount > 0
       ? `Contrôles et preuves · ${controlCount} point(s)`
       : "Contrôles et preuves";
+
+  for (
+    const buttonId
+    of [
+      "copy-document-filename-button",
+      "download-renamed-pdf-button",
+      "classify-pdf-button",
+      "remove-pdf-button"
+    ]
+  ) {
+    getElement(
+      buttonId
+    ).hidden =
+      ariaState.documentEditMode;
+  }
+
+  editButton.hidden =
+    ariaState.documentEditMode;
 
   updateDocumentEditorInterface();
   updateDocumentAnalysisProgressInterface();
@@ -6435,7 +7950,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.2.0").replace(/^v/, "")}`;
+    `v${String(config.version || "1.3.0").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf

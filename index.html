@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v1.2.0</title>
-  <link rel="stylesheet" href="style.css?v=1.2.0" />
+  <title>ARIA — v1.3.0</title>
+  <link rel="stylesheet" href="style.css?v=1.3.0" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
-  <script src="config.js?v=1.2.0"></script>
+  <script src="config.js?v=1.3.0"></script>
 </head>
 <body>
   <main id="app-shell">
@@ -17,7 +17,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v1.2.0</span>
+          <span id="version-label" class="version-badge">v1.3.0</span>
         </div>
       </div>
       <div class="header-status">
@@ -470,25 +470,73 @@
                 />
               </label>
 
-              <label>
+              <label class="document-combobox-field">
                 <span>Type</span>
-                <select id="document-field-type">
-                  <option value="">À compléter</option>
-                </select>
+                <div class="document-combobox-row">
+                  <input
+                    id="document-field-type"
+                    list="document-type-options"
+                    type="text"
+                    maxlength="16"
+                    placeholder="PLA"
+                    spellcheck="false"
+                  />
+                  <button
+                    class="secondary compact document-add-reference"
+                    type="button"
+                    data-reference-kind="documentTypes"
+                    title="Ajouter ce type dans BRAIN Knowledge"
+                  >
+                    +
+                  </button>
+                </div>
+                <datalist id="document-type-options"></datalist>
               </label>
 
-              <label>
+              <label class="document-combobox-field">
                 <span>Discipline</span>
-                <select id="document-field-discipline">
-                  <option value="">À compléter</option>
-                </select>
+                <div class="document-combobox-row">
+                  <input
+                    id="document-field-discipline"
+                    list="document-discipline-options"
+                    type="text"
+                    maxlength="16"
+                    placeholder="ARC"
+                    spellcheck="false"
+                  />
+                  <button
+                    class="secondary compact document-add-reference"
+                    type="button"
+                    data-reference-kind="disciplines"
+                    title="Ajouter cette discipline dans BRAIN Knowledge"
+                  >
+                    +
+                  </button>
+                </div>
+                <datalist id="document-discipline-options"></datalist>
               </label>
 
-              <label>
+              <label class="document-combobox-field">
                 <span>Technique</span>
-                <select id="document-field-technique">
-                  <option value="">À compléter</option>
-                </select>
+                <div class="document-combobox-row">
+                  <input
+                    id="document-field-technique"
+                    list="document-technique-options"
+                    type="text"
+                    maxlength="16"
+                    placeholder="PAR"
+                    spellcheck="false"
+                  />
+                  <button
+                    class="secondary compact document-add-reference"
+                    type="button"
+                    data-reference-kind="techniques"
+                    title="Ajouter cette technique dans BRAIN Knowledge"
+                  >
+                    +
+                  </button>
+                </div>
+                <datalist id="document-technique-options"></datalist>
               </label>
 
               <label>
@@ -525,6 +573,29 @@
               class="document-editor-status"
               aria-live="polite"
             ></div>
+
+            <div class="document-edit-mode-actions">
+              <button
+                id="document-edit-save"
+                type="button"
+              >
+                Enregistrer les corrections
+              </button>
+              <button
+                id="document-edit-save-download"
+                class="secondary"
+                type="button"
+              >
+                Enregistrer et télécharger
+              </button>
+              <button
+                id="document-edit-cancel"
+                class="secondary"
+                type="button"
+              >
+                Annuler
+              </button>
+            </div>
           </details>
 
           <details
@@ -564,6 +635,13 @@
         </div>
 
         <div class="document-analysis-actions document-editor-actions">
+          <button
+            id="edit-document-button"
+            class="compact"
+            type="button"
+          >
+            Éditer
+          </button>
           <button
             id="copy-document-filename-button"
             class="secondary compact"
@@ -638,7 +716,7 @@
         </div>
       </div>
       <p class="footer-technical">
-        ARIA Web v1.2.0 · éditeur documentaire · validation humaine
+        ARIA Web v1.3.0 · Knowledge Manager · carte éditable
       </p>
       <p class="footer-safety">
         Validation humaine requise avant toute action métier.
@@ -770,6 +848,200 @@
           <div id="knowledge-active-modules" class="knowledge-module-grid"></div>
         </article>
 
+        <article
+          id="knowledge-manager-card"
+          class="knowledge-manager-card"
+        >
+          <div class="knowledge-manager-heading">
+            <div>
+              <span>GESTION COURANTE</span>
+              <h3>Types, disciplines et techniques</h3>
+            </div>
+            <span
+              id="knowledge-manager-revision"
+              class="knowledge-status-badge"
+            >
+              Révision 0
+            </span>
+          </div>
+
+          <p id="knowledge-manager-status" class="dialog-note">
+            Charge le gestionnaire pour modifier les référentiels sans
+            redéployer ARIA Core.
+          </p>
+
+          <div class="knowledge-manager-tabs" role="tablist">
+            <button
+              id="knowledge-manager-types-tab"
+              class="knowledge-manager-tab active"
+              type="button"
+              data-manager-tab="documentTypes"
+            >
+              Types de documents
+            </button>
+            <button
+              id="knowledge-manager-disciplines-tab"
+              class="knowledge-manager-tab"
+              type="button"
+              data-manager-tab="disciplines"
+            >
+              Disciplines
+            </button>
+            <button
+              id="knowledge-manager-techniques-tab"
+              class="knowledge-manager-tab"
+              type="button"
+              data-manager-tab="techniques"
+            >
+              Techniques
+            </button>
+          </div>
+
+          <div class="knowledge-manager-toolbar">
+            <input
+              id="knowledge-manager-search"
+              type="search"
+              placeholder="Rechercher un code ou un libellé"
+            />
+            <button
+              id="knowledge-manager-add-button"
+              class="compact"
+              type="button"
+            >
+              Ajouter
+            </button>
+          </div>
+
+          <div
+            id="knowledge-manager-list"
+            class="knowledge-manager-list"
+          ></div>
+
+          <form
+            id="knowledge-manager-form"
+            class="knowledge-manager-form"
+            hidden
+            autocomplete="off"
+          >
+            <div class="knowledge-manager-form-heading">
+              <strong id="knowledge-manager-form-title">
+                Ajouter une valeur
+              </strong>
+              <button
+                id="knowledge-manager-form-close"
+                class="dialog-close"
+                type="button"
+                aria-label="Fermer le formulaire"
+              >
+                ×
+              </button>
+            </div>
+
+            <label
+              id="knowledge-manager-discipline-row"
+              hidden
+            >
+              <span>Discipline parente</span>
+              <select id="knowledge-manager-parent-discipline">
+                <option value="">Sélectionner</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Code officiel</span>
+              <input
+                id="knowledge-manager-code"
+                type="text"
+                maxlength="16"
+                spellcheck="false"
+                placeholder="PLA"
+              />
+            </label>
+
+            <label>
+              <span>Libellé</span>
+              <input
+                id="knowledge-manager-label"
+                type="text"
+                maxlength="160"
+                placeholder="Plan d’implantation"
+              />
+            </label>
+
+            <label
+              id="knowledge-manager-aliases-row"
+            >
+              <span>Alias, séparés par des virgules</span>
+              <textarea
+                id="knowledge-manager-aliases"
+                rows="3"
+                maxlength="1800"
+                placeholder="plan, plan implantation"
+              ></textarea>
+            </label>
+
+            <label class="knowledge-manager-checkbox">
+              <input
+                id="knowledge-manager-active"
+                type="checkbox"
+                checked
+              />
+              <span>Valeur active et proposée dans les listes</span>
+            </label>
+
+            <div class="knowledge-manager-form-actions">
+              <button
+                id="knowledge-manager-form-save"
+                type="submit"
+              >
+                Enregistrer dans le brouillon local
+              </button>
+              <button
+                id="knowledge-manager-form-cancel"
+                class="secondary"
+                type="button"
+              >
+                Annuler
+              </button>
+            </div>
+          </form>
+
+          <div class="knowledge-manager-publish-actions">
+            <button
+              id="knowledge-manager-save-draft"
+              class="secondary"
+              type="button"
+            >
+              Enregistrer le brouillon
+            </button>
+            <button
+              id="knowledge-manager-publish"
+              type="button"
+            >
+              Publier les changements
+            </button>
+            <button
+              id="knowledge-manager-discard"
+              class="secondary"
+              type="button"
+            >
+              Abandonner le brouillon
+            </button>
+          </div>
+
+          <details class="knowledge-manager-history">
+            <summary>Historique des publications</summary>
+            <div
+              id="knowledge-manager-history-list"
+              class="knowledge-version-list"
+            ></div>
+          </details>
+        </article>
+
+        <div class="knowledge-import-separator">
+          <span>Import et versions complètes</span>
+        </div>
+
         <div class="knowledge-import-actions">
           <button id="import-knowledge-button" type="button">
             Importer un paquet Knowledge
@@ -826,6 +1098,6 @@
   </dialog>
 
   <noscript>JavaScript doit être activé pour utiliser ARIA.</noscript>
-  <script src="sketch.js?v=1.2.0"></script>
+  <script src="sketch.js?v=1.3.0"></script>
 </body>
 </html>
