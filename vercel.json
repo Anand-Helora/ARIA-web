@@ -1,0 +1,28 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/chat.js": {
+      "maxDuration": 180,
+      "includeFiles": "brain/**/*.json"
+    },
+    "api/health.js": {
+      "maxDuration": 20,
+      "includeFiles": "brain/**/*.json"
+    },
+    "api/speech.js": {
+      "maxDuration": 30
+    },
+    "api/memory.js": {
+      "maxDuration": 30
+    },
+    "api/pdf.js": {
+      "maxDuration": 45
+    },
+    "api/document.js": {
+      "maxDuration": 180
+    },
+    "api/knowledge.js": {
+      "maxDuration": 120
+    }
+  }
+}

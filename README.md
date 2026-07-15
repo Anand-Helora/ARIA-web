@@ -1,18 +1,23 @@
-# ARIA Web v1.3.3 — Téléchargement direct
+# ARIA Core v0.11.2 — Téléchargement PDF en flux
+
+## Cause corrigée
+
+La version précédente utilisait une iframe invisible pour ouvrir une URL Blob.
+Vercel Blob bloque volontairement l’intégration dans une iframe avec
+`X-Frame-Options: DENY`.
 
 ## Nouveau parcours
 
-Le navigateur ne récupère plus le PDF privé avec `fetch()` pour fabriquer un
-objet local.
+1. ARIA Web demande un ticket de téléchargement valable cinq minutes.
+2. Le navigateur ouvre `/api/pdf?ticket=...`.
+3. ARIA Core vérifie la signature du ticket.
+4. ARIA Core récupère le PDF privé avec `get()`.
+5. Le fichier est transmis en flux avec :
 
-ARIA Web demande au Core une copie temporaire portant le nom validé, puis lance
-son téléchargement direct à l’aide d’un lien privé signé.
+```text
+Content-Type: application/pdf
+Content-Disposition: attachment
+Cache-Control: private, no-store
+```
 
-## Résultat
-
-- meilleure compatibilité avec Edge et les navigateurs mobiles ;
-- aucun changement du PDF original ;
-- nom officiel conservé ;
-- pas de popup ;
-- pas de nouvel onglet ;
-- message visible lorsque le téléchargement est lancé.
+Le nom validé est imposé par l’en-tête HTTP. Le PDF original reste inchangé.
