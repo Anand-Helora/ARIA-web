@@ -5,7 +5,7 @@
  * Ne jamais placer de clé OpenAI, de mot de passe ou de secret dans ce fichier.
  */
 window.ARIA_CONFIG = Object.freeze({
-  version: "1.3.6",
+  version: "1.3.7",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",

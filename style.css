@@ -2575,3 +2575,29 @@ code {
   font-size: 1rem;
   font-weight: 900;
 }
+
+
+/* Synchronisation des cartes et téléchargement local — v1.3.7 */
+
+.pdf-attachment-card
+.pdf-attachment-copy strong {
+  overflow-wrap: anywhere;
+}
+
+.document-download-ready {
+  animation:
+    aria-download-ready
+    220ms ease-out;
+}
+
+@keyframes aria-download-ready {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

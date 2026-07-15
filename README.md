@@ -1,18 +1,32 @@
-# ARIA Web v1.3.6 — PDF reçu avant enregistrement
+# ARIA Web v1.3.7 — Téléchargement local et cartes synchronisées
 
-## Parcours
+## Téléchargement
+
+Le PDF sélectionné est maintenant conservé en mémoire dans le navigateur
+pendant la session.
 
 ```text
-Préparer le fichier
-→ téléchargement authentifié depuis ARIA Core
-→ progression réelle
-→ contrôle du type et de la taille du fichier
-→ création d’une URL locale blob:
-→ Enregistrer le PDF
+Ajouter le PDF
+→ analyser
+→ corriger
+→ Télécharger la copie renommée
 ```
 
-Le bouton final ne contacte aucun serveur. Il enregistre un fichier déjà reçu
-dans le navigateur.
+Le téléchargement utilise directement le fichier local et modifie uniquement
+le nom de la copie. Aucun appel ARIA Core n’est nécessaire.
 
-Cette version n’utilise ni iframe, ni nouvel onglet, ni ticket dans l’URL, ni
-URL Vercel Blob côté navigateur.
+Après une actualisation de la page, le navigateur ne peut pas restaurer un
+objet `File`. ARIA demande alors de sélectionner de nouveau le PDF source. Ce
+fichier n’est pas téléversé une seconde fois : il sert uniquement à créer la
+copie locale.
+
+## Synchronisation des cartes
+
+Après une analyse ou l’enregistrement de corrections, ARIA actualise :
+
+- le titre compact ;
+- le résumé compact ;
+- le nom proposé ;
+- la carte du PDF actif ;
+- le statut de validation ;
+- le libellé du bouton de téléchargement.
