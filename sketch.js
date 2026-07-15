@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.3.2",
+  version: "1.3.3",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -564,7 +564,7 @@ async function requestRemoteAria(image = null, pdf = null) {
           : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "1.3.2"
+          version: config.version || "1.3.3"
         }
       }),
       signal: controller.signal
@@ -4619,7 +4619,7 @@ async function requestDocumentClassification(
           client: {
             name: "ARIA-web",
             version:
-              config.version || "1.3.2"
+              config.version || "1.3.3"
           }
         }),
         signal: controller.signal
@@ -6345,7 +6345,7 @@ async function downloadRenamedPdf() {
     setState(
       "error",
       "Téléchargement indisponible.",
-      "Complète et valide toutes les métadonnées avant de télécharger la copie."
+      "Complète et enregistre toutes les métadonnées avant de télécharger la copie."
     );
     return;
   }
@@ -6357,83 +6357,64 @@ async function downloadRenamedPdf() {
   setState(
     "thinking",
     "Préparation de la copie renommée…",
-    "Le PDF original reste inchangé dans le stockage privé."
+    "ARIA crée une copie privée temporaire. Le document original reste inchangé."
   );
 
-  let objectUrl = "";
+  let downloadFrame = null;
 
   try {
-    if (
-      !ariaState.documentAnalysis
-        ?.filename_complete
-    ) {
-      throw new Error(
-        "Le nom n’est pas encore complet."
-      );
-    }
-
     const data =
       await requestPdfService({
         action:
-          "prepare_download",
+          "prepare_renamed_download",
         pathname:
           pdf.pathname,
         name:
           pdf.name,
         size:
-          pdf.size
+          pdf.size,
+        filename
       });
 
+    const download =
+      data.download;
+
     if (
-      !data.download?.fileUrl
+      !download?.fileUrl ||
+      !download?.filename
     ) {
       throw new Error(
-        "ARIA Core n’a pas fourni de lien de téléchargement."
+        "ARIA Core n’a pas fourni de téléchargement exploitable."
       );
     }
 
-    const response =
-      await fetch(
-        data.download.fileUrl,
-        {
-          cache: "no-store"
-        }
-      );
-
-    if (!response.ok) {
-      throw new Error(
-        `Le stockage privé a répondu avec le statut ${response.status}.`
-      );
-    }
-
-    const blob =
-      await response.blob();
-
-    objectUrl =
-      URL.createObjectURL(
-        blob
-      );
-
-    const link =
+    downloadFrame =
       document.createElement(
-        "a"
+        "iframe"
       );
-    link.href =
-      objectUrl;
-    link.download =
-      ariaState
-        .documentAnalysis
-        .suggested_filename;
-    link.rel =
-      "noopener";
-    document.body.append(link);
-    link.click();
-    link.remove();
+    downloadFrame.hidden = true;
+    downloadFrame.setAttribute(
+      "aria-hidden",
+      "true"
+    );
+    downloadFrame.src =
+      download.fileUrl;
+
+    document.body.append(
+      downloadFrame
+    );
+
+    window.setTimeout(
+      () => {
+        downloadFrame?.remove();
+      },
+      90000
+    );
 
     setState(
       "idle",
-      "Copie renommée téléchargée.",
-      "Le document original n’a pas été modifié."
+      "Téléchargement lancé.",
+      `Copie : ${download.filename}`
     );
   } catch (error) {
     console.error(
@@ -6447,16 +6428,6 @@ async function downloadRenamedPdf() {
       getReadableError(error)
     );
   } finally {
-    if (objectUrl) {
-      window.setTimeout(
-        () =>
-          URL.revokeObjectURL(
-            objectUrl
-          ),
-        1000
-      );
-    }
-
     ariaState.documentDownloadBusy =
       false;
     updateDocumentAnalysisInterface();
@@ -8072,7 +8043,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.3.2").replace(/^v/, "")}`;
+    `v${String(config.version || "1.3.3").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf

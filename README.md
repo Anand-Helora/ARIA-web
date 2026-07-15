@@ -1,14 +1,18 @@
-# ARIA Web v1.3.2 — Contraste des métadonnées
+# ARIA Web v1.3.3 — Téléchargement direct
 
-Le titre « Corriger les métadonnées » est maintenant présenté comme un
-bandeau d’action fortement contrasté :
+## Nouveau parcours
 
-- fond doré ;
-- texte blanc plus grand ;
-- icône d’édition ;
-- sous-titre explicatif ;
-- flèche d’ouverture ;
-- zone cliquable sur toute la largeur ;
-- adaptation mobile.
+Le navigateur ne récupère plus le PDF privé avec `fetch()` pour fabriquer un
+objet local.
 
-Aucune mise à jour ARIA Core n’est nécessaire.
+ARIA Web demande au Core une copie temporaire portant le nom validé, puis lance
+son téléchargement direct à l’aide d’un lien privé signé.
+
+## Résultat
+
+- meilleure compatibilité avec Edge et les navigateurs mobiles ;
+- aucun changement du PDF original ;
+- nom officiel conservé ;
+- pas de popup ;
+- pas de nouvel onglet ;
+- message visible lorsque le téléchargement est lancé.
