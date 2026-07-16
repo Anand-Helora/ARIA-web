@@ -27,7 +27,9 @@ function initializeRoomIntelligence() {
   );
   roomGet("save-room-answer").addEventListener(
     "click",
-    saveCurrentRoomAnswer
+    () => {
+      void saveCurrentRoomAnswer();
+    }
   );
   roomGet("skip-room-question").addEventListener(
     "click",
@@ -972,13 +974,38 @@ function renderRoomQuestion() {
   roomGet("room-answer-input").value = "";
 }
 
+function getRoomAnswerValue(forcedValue, question) {
+  const isEvent =
+    typeof Event !== "undefined" &&
+    forcedValue instanceof Event;
+  const isObject =
+    forcedValue !== null &&
+    typeof forcedValue === "object";
+  let value = String(
+    isEvent || isObject
+      ? roomGet("room-answer-input").value
+      : forcedValue ?? roomGet("room-answer-input").value
+  ).trim();
+
+  if (/^\[object\s+[a-z]*event\]$/i.test(value)) {
+    value = "";
+  }
+
+  if (
+    question?.target_field === "element_code" &&
+    value !== "Je ne sais pas"
+  ) {
+    value = value.toUpperCase().replace(/\s+/g, "");
+  }
+
+  return value;
+}
+
 async function saveCurrentRoomAnswer(forcedValue) {
   const question = getCurrentRoomQuestion();
   if (!question) return false;
 
-  const value = String(
-    forcedValue ?? roomGet("room-answer-input").value
-  ).trim();
+  const value = getRoomAnswerValue(forcedValue, question);
   if (!value) {
     setState(
       "idle",
@@ -991,6 +1018,22 @@ async function saveCurrentRoomAnswer(forcedValue) {
   const isElementCode =
     question.target_field === "element_code" &&
     question.target_entity_type === "equipment";
+  if (
+    isElementCode &&
+    value !== "Je ne sais pas" &&
+    (
+      !/^(?=.{2,10}$)(?=.*[A-Z0-9])[A-Z0-9-]+$/.test(value) ||
+      ["OBJECTPOIN", "POINTEREVE", "POINTEREVENT", "OBJECTEVENT"].includes(value)
+    )
+  ) {
+    setState(
+      "idle",
+      "Trigramme invalide.",
+      "Utilise 2 à 10 caractères A-Z, 0-9 ou tiret, par exemple PR, PRIRJ ou CTA--."
+    );
+    return false;
+  }
+
   const answer = {
     question_id: question.question_id,
     question: question.question,
@@ -1009,6 +1052,9 @@ async function saveCurrentRoomAnswer(forcedValue) {
   const existingIndex = roomAnswers.findIndex(
     item => item.question_id === answer.question_id
   );
+  const previousAnswer = existingIndex >= 0
+    ? roomAnswers[existingIndex]
+    : null;
   if (existingIndex >= 0) roomAnswers[existingIndex] = answer;
   else roomAnswers.push(answer);
 
@@ -1092,6 +1138,13 @@ async function saveCurrentRoomAnswer(forcedValue) {
     );
     return true;
   } catch (error) {
+    if (existingIndex >= 0 && previousAnswer) {
+      roomAnswers[existingIndex] = previousAnswer;
+    } else {
+      roomAnswers = roomAnswers.filter(
+        item => item.question_id !== answer.question_id
+      );
+    }
     setState(
       "error",
       "La réponse n’a pas été appliquée.",

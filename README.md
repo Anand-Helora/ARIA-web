@@ -1,12 +1,10 @@
-# ARIA Web v1.8.0 — fiches local enrichies
+# ARIA Web v1.9.0 — réponses de codification fiabilisées
 
-- affiche « Analyse en cours » pendant tout le traitement ;
-- réserve « Analyse interrompue » aux erreurs réelles ;
-- vide automatiquement le chat au lancement de l’analyse ;
-- affiche des cartes locales plus lisibles avec indicateurs et aperçus ;
-- ouvre chaque fiche dans une grande vue détaillée ;
-- montre identité, surfaces, éléments, GMAO, CPV, influences, risques, réseaux, preuves et attentes ;
-- permet d’appliquer un trigramme à tous les éléments identiques ;
-- permet de mémoriser la codification dans BRAIN ;
-- indique le nombre de groupes modifiés et les conflits conservés ;
-- conserve l’entretien vocal et l’export Excel.
+## Correctifs
+
+- le bouton de validation n'envoie plus le `PointerEvent` comme réponse ;
+- les trigrammes sont normalisés en majuscules et validés avant l'appel au Core ;
+- les codes ATOMBIM avec tirets restent autorisés ;
+- une réponse invalide n'est plus conservée dans la session locale ;
+- le message renvoyé par BRAIN indique précisément si le stockage est absent ou en erreur ;
+- l'interface reste compatible avec les cartes locales agrandissables de la v1.8.0.

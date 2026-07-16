@@ -414,7 +414,7 @@
 .room-equipment-line span { color:var(--accent); font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.76rem; overflow-wrap:anywhere; }
 .room-equipment-line small { color:var(--muted); }
 
-/* v1.8.0 — statut dynamique, cartes enrichies et fiche plein écran */
+/* v1.9.0 — statut dynamique, cartes enrichies et fiche plein écran */
 .room-intelligence-card[hidden],
 .room-analysis-empty[hidden],
 .room-analysis-progress[hidden],
