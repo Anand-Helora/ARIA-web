@@ -1,4 +1,4 @@
-# ARIA Web v1.9.0 — réponses de codification fiabilisées
+# ARIA Web v1.10.0 — Listing Elements et contrôles renforcés
 
 ## Correctifs
 

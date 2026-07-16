@@ -188,7 +188,7 @@ async function runRoomAnalysis() {
     progress.finish();
     setState(
       "idle",
-      "Fiches local préparées.",
+      "Listing Elements préparé.",
       `${data.analysis?.rooms?.length || 0} locaux ont été reconstruits.`
     );
   } catch (error) {

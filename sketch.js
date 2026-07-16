@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.9.0",
+  version: "1.10.0",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -637,7 +637,7 @@ function updateRoomBootstrapInterface() {
     ariaState.documentAnalysisBusy;
 
   if (ariaState.roomModuleLoading) {
-    runButton.textContent = "Chargement du module Fiches local…";
+    runButton.textContent = "Chargement du module Listing Elements…";
   } else if (ariaState.roomModuleError) {
     runButton.textContent = "Réessayer le chargement";
   } else {
@@ -664,7 +664,7 @@ function loadRoomModule() {
   window.__ariaRoomModulePromise = new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src = `rooms.js?v=${encodeURIComponent(
-      config.version || "1.9.0"
+      config.version || "1.10.0"
     )}`;
     script.async = true;
     script.dataset.ariaRoomModule = "true";
@@ -676,7 +676,7 @@ function loadRoomModule() {
           typeof runRoomAnalysis !== "function"
         ) {
           throw new Error(
-            "Le module Fiches local ne fournit pas les fonctions attendues."
+            "Le module Listing Elements ne fournit pas les fonctions attendues."
           );
         }
 
@@ -741,7 +741,7 @@ async function handleRoomBootstrapRun(event) {
     console.error("Room module loading failed:", error);
     setState(
       "error",
-      "Le module Fiches local n’a pas pu démarrer.",
+      "Le module Listing Elements n’a pas pu démarrer.",
       getReadableError(error)
     );
   } finally {
@@ -10561,7 +10561,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.9.0").replace(/^v/, "")}`;
+    `v${String(config.version || "1.10.0").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf
