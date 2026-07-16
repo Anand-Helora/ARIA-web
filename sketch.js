@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.5.0",
+  version: "1.5.1",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -121,7 +121,12 @@ const ariaState = {
   knowledgeManagerSearch: "",
   knowledgeManagerEditing: null,
   knowledgeManagerDirty: false,
-  knowledgeManagerBusy: false
+  knowledgeManagerBusy: false,
+  electricalModuleLoaded: false,
+  electricalModuleLoading: false,
+  electricalModuleInitialized: false,
+  electricalModuleError: "",
+  electricalBootstrapBusy: false
 };
 
 const stateVisuals = {
@@ -270,6 +275,10 @@ function initializeInterface() {
   getElement("classify-pdf-button").addEventListener(
     "click",
     classifyPendingPdf
+  );
+  getElement("run-electrical-analysis-button").addEventListener(
+    "click",
+    handleElectricalBootstrapRun
   );
   getElement("copy-document-filename-button").addEventListener(
     "click",
@@ -452,13 +461,6 @@ function initializeInterface() {
   loadPendingPdfSession();
   loadDocumentAnalysisSession();
 
-  if (
-    typeof initializeElectricalAnalyst ===
-      "function"
-  ) {
-    initializeElectricalAnalyst();
-  }
-
   restorePendingPdfLocalFile()
     .catch((error) => {
       console.warn(
@@ -488,6 +490,253 @@ function getElement(id) {
   const element = document.getElementById(id);
   if (!element) throw new Error(`Élément d'interface introuvable : #${id}`);
   return element;
+}
+
+function updateElectricalBootstrapInterface() {
+  if (!domReady) return;
+
+  const card =
+    document.getElementById(
+      "electrical-analysis-card"
+    );
+  const runButton =
+    document.getElementById(
+      "run-electrical-analysis-button"
+    );
+  const empty =
+    document.getElementById(
+      "electrical-analysis-empty"
+    );
+
+  if (
+    !card ||
+    !runButton ||
+    !empty
+  ) {
+    return;
+  }
+
+  const documentReady =
+    Boolean(
+      ariaState.pendingPdf &&
+      ariaState.documentAnalysis
+    );
+
+  card.hidden =
+    !documentReady;
+
+  if (!documentReady) {
+    return;
+  }
+
+  if (
+    ariaState.electricalModuleLoaded &&
+    typeof updateElectricalAnalystInterface ===
+      "function"
+  ) {
+    updateElectricalAnalystInterface();
+    return;
+  }
+
+  empty.hidden = false;
+  runButton.disabled =
+    ariaState.electricalModuleLoading ||
+    ariaState.electricalBootstrapBusy ||
+    ariaState.documentAnalysisBusy;
+
+  if (
+    ariaState.electricalModuleLoading
+  ) {
+    runButton.textContent =
+      "Chargement du module électrique…";
+  } else if (
+    ariaState.electricalModuleError
+  ) {
+    runButton.textContent =
+      "Réessayer le chargement du module";
+  } else {
+    runButton.textContent =
+      "Lancer la préanalyse électrique";
+  }
+}
+
+function loadElectricalModule() {
+  if (
+    ariaState.electricalModuleLoaded &&
+    typeof runElectricalAnalysis ===
+      "function"
+  ) {
+    return Promise.resolve();
+  }
+
+  if (
+    window.__ariaElectricalModulePromise
+  ) {
+    return window.__ariaElectricalModulePromise;
+  }
+
+  ariaState.electricalModuleLoading =
+    true;
+  ariaState.electricalModuleError =
+    "";
+  updateElectricalBootstrapInterface();
+
+  window.__ariaElectricalModulePromise =
+    new Promise(
+      (resolve, reject) => {
+        const script =
+          document.createElement(
+            "script"
+          );
+
+        script.src =
+          `electrical.js?v=${encodeURIComponent(
+            config.version ||
+            "1.5.1"
+          )}`;
+        script.async = true;
+        script.dataset
+          .ariaElectricalModule =
+          "true";
+
+        script.addEventListener(
+          "load",
+          () => {
+            try {
+              if (
+                typeof initializeElectricalAnalyst !==
+                  "function" ||
+                typeof runElectricalAnalysis !==
+                  "function"
+              ) {
+                throw new Error(
+                  "Le module électrique ne fournit pas les fonctions attendues."
+                );
+              }
+
+              if (
+                !ariaState
+                  .electricalModuleInitialized
+              ) {
+                initializeElectricalAnalyst();
+                ariaState
+                  .electricalModuleInitialized =
+                  true;
+              }
+
+              ariaState
+                .electricalModuleLoaded =
+                true;
+              ariaState
+                .electricalModuleLoading =
+                false;
+              ariaState
+                .electricalModuleError =
+                "";
+
+              updateElectricalBootstrapInterface();
+              resolve();
+            } catch (error) {
+              ariaState
+                .electricalModuleLoading =
+                false;
+              ariaState
+                .electricalModuleError =
+                getReadableError(error);
+              window
+                .__ariaElectricalModulePromise =
+                null;
+              updateElectricalBootstrapInterface();
+              reject(error);
+            }
+          },
+          {
+            once: true
+          }
+        );
+
+        script.addEventListener(
+          "error",
+          () => {
+            const error =
+              new Error(
+                "Le fichier electrical.js n’a pas pu être chargé."
+              );
+
+            ariaState
+              .electricalModuleLoading =
+              false;
+            ariaState
+              .electricalModuleError =
+              error.message;
+            window
+              .__ariaElectricalModulePromise =
+              null;
+            updateElectricalBootstrapInterface();
+            reject(error);
+          },
+          {
+            once: true
+          }
+        );
+
+        document.body.append(
+          script
+        );
+      }
+    );
+
+  return window
+    .__ariaElectricalModulePromise;
+}
+
+async function handleElectricalBootstrapRun(
+  event
+) {
+  event?.preventDefault();
+  event?.stopImmediatePropagation();
+
+  if (
+    ariaState.electricalBootstrapBusy
+  ) {
+    return;
+  }
+
+  if (
+    !ariaState.pendingPdf ||
+    !ariaState.documentAnalysis
+  ) {
+    setState(
+      "error",
+      "Classement initial requis.",
+      "Analyse et classe d’abord le PDF."
+    );
+    return;
+  }
+
+  ariaState.electricalBootstrapBusy =
+    true;
+  updateElectricalBootstrapInterface();
+
+  try {
+    await loadElectricalModule();
+    await runElectricalAnalysis();
+  } catch (error) {
+    console.error(
+      "Electrical module loading failed:",
+      error
+    );
+
+    setState(
+      "error",
+      "Electrical Analyst n’a pas pu démarrer.",
+      getReadableError(error)
+    );
+  } finally {
+    ariaState.electricalBootstrapBusy =
+      false;
+    updateElectricalBootstrapInterface();
+  }
 }
 
 async function handleCommand(options = {}) {
@@ -642,7 +891,7 @@ async function requestRemoteAria(image = null, pdf = null) {
           : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "1.5.0"
+          version: config.version || "1.5.1"
         }
       }),
       signal: controller.signal
@@ -4789,7 +5038,7 @@ async function requestDocumentClassification(
           client: {
             name: "ARIA-web",
             version:
-              config.version || "1.5.0"
+              config.version || "1.5.1"
           }
         }),
         signal: controller.signal
@@ -7672,6 +7921,7 @@ function updateDocumentAnalysisInterface() {
     editorPanel.open = false;
     updateDocumentEditorInterface();
     updateDocumentAnalysisProgressInterface();
+    updateElectricalBootstrapInterface();
     return;
   }
 
@@ -7904,6 +8154,7 @@ function updateDocumentAnalysisInterface() {
   updateDocumentEditorInterface();
   updateDocumentAnalysisProgressInterface();
   updateDocumentStabilizationInterface();
+  updateElectricalBootstrapInterface();
 }
 
 function getPdfLocalStatus() {
@@ -10051,7 +10302,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.5.0").replace(/^v/, "")}`;
+    `v${String(config.version || "1.5.1").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf
@@ -10076,13 +10327,6 @@ function updateInterface() {
   updateImageAttachmentInterface();
   updatePdfAttachmentInterface();
   updateDocumentAnalysisInterface();
-
-  if (
-    typeof updateElectricalAnalystInterface ===
-      "function"
-  ) {
-    updateElectricalAnalystInterface();
-  }
 
   updateMemoryProposalCard();
   updateKnowledgeInterface();

@@ -772,3 +772,9 @@
     width: 100%;
   }
 }
+
+
+/* Chargement à la demande — v1.5.1 */
+#run-electrical-analysis-button:disabled {
+  cursor: wait;
+}

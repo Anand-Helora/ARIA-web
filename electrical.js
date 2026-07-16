@@ -125,7 +125,8 @@ function ensureElectricalState() {
     electricalClassificationSignature: "",
     electricalSourcePathname: "",
     electricalAnalysisStale: false,
-    electricalLastSavedAt: ""
+    electricalLastSavedAt: "",
+    electricalModuleUiBound: false
   };
 
   for (const [key, value] of Object.entries(defaults)) {
@@ -138,9 +139,27 @@ function ensureElectricalState() {
 function initializeElectricalAnalyst() {
   ensureElectricalState();
 
+  if (
+    ariaState.electricalModuleUiBound
+  ) {
+    updateElectricalAnalystInterface();
+    return;
+  }
+
+  ariaState.electricalModuleUiBound =
+    true;
+
   getElement("run-electrical-analysis-button").addEventListener(
     "click",
-    runElectricalAnalysis
+    (event) => {
+      if (
+        ariaState.electricalBootstrapBusy
+      ) {
+        return;
+      }
+
+      runElectricalAnalysis(event);
+    }
   );
   getElement("rerun-electrical-analysis-button").addEventListener(
     "click",
@@ -370,7 +389,7 @@ async function electricalApiRequest(payload) {
         ...payload,
         client: {
           name: "ARIA-web",
-          version: config.version || "1.5.0"
+          version: config.version || "1.5.1"
         }
       }),
       signal: controller.signal
