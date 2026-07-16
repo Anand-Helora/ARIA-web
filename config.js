@@ -5,7 +5,7 @@
  * Ne jamais placer de clé OpenAI, de mot de passe ou de secret dans ce fichier.
  */
 window.ARIA_CONFIG = Object.freeze({
-  version: "1.6.1",
+  version: "1.6.2",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -53,6 +53,6 @@ window.ARIA_CONFIG = Object.freeze({
   electricalAnalysisSessionKey: "aria.web.clean.v1.5.3.electrical-analysis.session",
   electricalAnalysisPersistentKey: "aria.web.clean.v1.5.3.electrical-analysis.persistent",
   speechRateKey: "aria.web.clean.v1.5.3.speech-rate",
-  speechVoiceKey: "aria.web.clean.v1.6.1.speech-voice",
-  roomAnalysisSessionKey: "aria.web.clean.v1.6.1.room-analysis.session"
+  speechVoiceKey: "aria.web.clean.v1.6.2.speech-voice",
+  roomAnalysisSessionKey: "aria.web.clean.v1.6.2.room-analysis.session"
 });

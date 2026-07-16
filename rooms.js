@@ -157,7 +157,16 @@ async function runRoomAnalysis() {
     );
   } catch (error) {
     progress.stop();
-    ariaState.roomModuleError = getReadableError(error);
+    const rawMessage = getReadableError(error);
+
+    ariaState.roomModuleError =
+      /unterminated string|unexpected end of json|end of json input/i.test(
+        rawMessage
+      )
+        ? "La réponse d’analyse a été interrompue avant la fin. " +
+          "Le Core doit être mis à jour vers la v0.13.2."
+        : rawMessage;
+
     setState(
       "error",
       "L’analyse des locaux a échoué.",

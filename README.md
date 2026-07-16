@@ -1,11 +1,8 @@
-# ARIA Web v1.6.1 — Room Intelligence
+# ARIA Web v1.6.2 — Room Intelligence
 
-Correctifs :
-
-- transmission de la taille réelle du PDF vers ARIA Core ;
-- prise en charge d'un PDF réassocié localement ;
-- bouton d'analyse remis à jour après succès ou erreur ;
-- message de relance clair ;
-- nouvelle carte sombre intégrée au design général d'ARIA ;
-- présentation plus compacte ;
-- module Electrical Analyst toujours désactivé mais conservé.
+- pourcentage et libellé de progression en blanc ;
+- contraste renforcé pendant l'analyse ;
+- message compréhensible en cas d'ancien Core produisant un JSON tronqué ;
+- interface sombre v1.6.1 conservée ;
+- correction PDF v1.6.1 conservée ;
+- module électrique toujours désactivé mais conservé.

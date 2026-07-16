@@ -1,12 +1,10 @@
-# Validation ARIA Web v1.6.1
+# Validation ARIA Web v1.6.2
 
-- [x] `pdf.size` transmis à `/api/rooms`
-- [x] `pdf.detail` transmis
-- [x] PDF de moins de 45 Mo autorisé
-- [x] bouton réactivé après erreur
-- [x] libellé « Relancer l'analyse » après erreur
-- [x] aucun état « Chargement du module » persistant
-- [x] interface sombre cohérente avec ARIA
-- [x] contraste des textes amélioré
-- [x] interface mobile conservée
+- [x] texte du pourcentage blanc
+- [x] libellé d'étape blanc
+- [x] message JSON technique remplacé
+- [x] cache-busting v1.6.2
+- [x] transmission de la taille PDF conservée
+- [x] bouton de relance conservé
+- [x] design sombre conservé
 - [x] aucun secret côté Web
