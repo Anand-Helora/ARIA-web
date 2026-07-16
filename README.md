@@ -1,38 +1,42 @@
-# ARIA Web v1.4.1 — Stabilisation documentaire
+# ARIA Web v1.5.0 — Electrical Analyst
 
-Base : ARIA Web v1.4.0, conservée comme version stable.
+Base conservée : ARIA Web v1.4.1.
 
-## Ajouts
+Le classement, le renommage, la mémorisation des corrections et le
+téléchargement local restent inchangés.
 
-- bouton `Nouveau document` ;
-- confirmation avant retrait de la fiche active ;
-- état visible du PDF local :
-  - disponible ;
-  - restauration en cours ;
-  - à réassocier ;
-  - absent ;
-- comparaison du nom original et du nom final ;
-- checklist du parcours en cinq étapes ;
-- diagnostic intégré copiable ;
-- référence copiable pour chaque erreur ;
-- bouton de relance de la restauration locale ;
-- persistance des métadonnées dans `localStorage` ;
-- restauration du PDF depuis `IndexedDB` ;
-- correction : réinitialiser l’analyse ne supprime plus le PDF local.
+## Utilisation
 
-## Checklist
+1. ajouter un PDF ;
+2. lancer l’analyse et le classement documentaire ;
+3. ouvrir la carte `Préanalyse électrique` ;
+4. lancer l’analyse approfondie ;
+5. examiner les valeurs, comptages, preuves, contradictions et points à
+   vérifier ;
+6. accepter, corriger ou ignorer les propositions ;
+7. sélectionner les valeurs techniques à mémoriser ;
+8. cliquer sur `Enregistrer les décisions`.
 
-```text
-PDF analysé
-Métadonnées complètes
-Corrections mémorisées
-Nom validé
-PDF disponible au téléchargement
-```
+## Contenu de la carte
 
-## Sécurité
+- identification et caractéristiques du tableau ;
+- configuration Normal / Normal secours / UPS-ASI ;
+- comptage des protections, disjoncteurs, départs et réserves ;
+- calibres, câbles, tableaux aval et circuits remarquables ;
+- propositions pour les métadonnées manquantes ;
+- confiance, preuves, contradictions et origine de chaque valeur ;
+- état de la mémoire d’apprentissage.
 
-- aucune clé OpenAI dans ARIA Web ;
-- le PDF local reste dans le navigateur ;
-- le PDF original n’est jamais renommé ni supprimé ;
-- le bouton `Nouveau document` demande une confirmation.
+## Validation humaine
+
+Le bouton `Accepter les propositions fiables` sélectionne les propositions dont
+la confiance atteint au moins 85 %, mais aucune valeur n’est enregistrée sans le
+clic final de l’utilisateur.
+
+Le remplissage automatique est volontairement désactivé dans cette version.
+Les validations serviront à mesurer les futures règles fiables.
+
+## Déploiement
+
+Déployer d’abord ARIA Core v0.12.0, vérifier `/api/health`, puis publier les
+fichiers de cette archive dans le dépôt `ARIA-web`.

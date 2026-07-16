@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v1.4.1</title>
-  <link rel="stylesheet" href="style.css?v=1.4.1" />
+  <title>ARIA — v1.5.0</title>
+  <link rel="stylesheet" href="style.css?v=1.5.0" />
+  <link rel="stylesheet" href="electrical.css?v=1.5.0" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
-  <script src="config.js?v=1.4.1"></script>
+  <script src="config.js?v=1.5.0"></script>
 </head>
 <body>
   <main id="app-shell">
@@ -17,7 +18,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v1.4.1</span>
+          <span id="version-label" class="version-badge">v1.5.0</span>
         </div>
       </div>
       <div class="header-status">
@@ -863,6 +864,267 @@
         </div>
       </section>
 
+
+      <section
+        id="electrical-analysis-card"
+        class="electrical-analysis-card"
+        hidden
+        aria-live="polite"
+      >
+        <div class="electrical-analysis-heading">
+          <div>
+            <p class="section-kicker">ARIA ELECTRICAL ANALYST</p>
+            <h2>Préanalyse électrique</h2>
+            <p>
+              Compréhension technique, propositions argumentées et apprentissage
+              à partir de tes validations.
+            </p>
+          </div>
+          <span
+            id="electrical-confidence-badge"
+            class="electrical-confidence-badge"
+            hidden
+          >
+            Confiance —
+          </span>
+        </div>
+
+        <div
+          id="electrical-analysis-progress"
+          class="electrical-analysis-progress"
+          hidden
+        >
+          <div class="pdf-progress-heading">
+            <span id="electrical-progress-label">Préparation de la préanalyse</span>
+            <strong id="electrical-progress-value">0 %</strong>
+          </div>
+          <progress
+            id="electrical-progress-bar"
+            max="100"
+            value="0"
+          ></progress>
+          <small>
+            ARIA examine le tableau, les alimentations, les protections, les
+            circuits et les métadonnées encore manquantes.
+          </small>
+        </div>
+
+        <div
+          id="electrical-analysis-error"
+          class="document-inline-status error"
+          hidden
+          role="alert"
+        >
+          <strong>Préanalyse interrompue</strong>
+          <span id="electrical-analysis-error-text"></span>
+          <code id="electrical-analysis-error-code"></code>
+        </div>
+
+        <div
+          id="electrical-analysis-empty"
+          class="electrical-analysis-empty"
+        >
+          <div class="electrical-empty-icon" aria-hidden="true">⚡</div>
+          <div>
+            <strong>Approfondir ce document</strong>
+            <p>
+              ARIA peut rechercher la désignation du tableau, la tension, le type
+              d’alimentation, les disjoncteurs, les réserves, les tableaux aval et
+              proposer les métadonnées manquantes.
+            </p>
+          </div>
+          <button
+            id="run-electrical-analysis-button"
+            type="button"
+          >
+            Lancer la préanalyse électrique
+          </button>
+        </div>
+
+        <div
+          id="electrical-analysis-content"
+          class="electrical-analysis-content"
+          hidden
+        >
+          <div class="electrical-summary-block">
+            <div>
+              <span id="electrical-document-kind">Nature non déterminée</span>
+              <strong id="electrical-analysis-summary"></strong>
+            </div>
+            <span
+              id="electrical-stale-badge"
+              class="electrical-stale-badge"
+              hidden
+            >
+              À actualiser
+            </span>
+          </div>
+
+          <section class="electrical-section">
+            <div class="electrical-section-heading">
+              <div>
+                <span>PRÉANALYSE</span>
+                <h3>Identification et caractéristiques</h3>
+              </div>
+              <small>Valeurs détectées ou proposées par ARIA</small>
+            </div>
+            <div
+              id="electrical-key-fields"
+              class="electrical-key-fields"
+            ></div>
+          </section>
+
+          <section class="electrical-section">
+            <div class="electrical-section-heading">
+              <div>
+                <span>COMPTAGES</span>
+                <h3>Protections, départs et réserves</h3>
+              </div>
+              <small>Les divergences restent visibles</small>
+            </div>
+            <div
+              id="electrical-count-grid"
+              class="electrical-count-grid"
+            ></div>
+          </section>
+
+          <section class="electrical-section electrical-validation-section">
+            <div class="electrical-section-heading electrical-proposals-heading">
+              <div>
+                <span>VALIDATION TECHNIQUE</span>
+                <h3>Contrôler les valeurs importantes</h3>
+                <small>Une modification devient une correction humaine mémorisée</small>
+              </div>
+              <button
+                id="accept-reliable-technical-values"
+                class="secondary compact"
+                type="button"
+              >
+                Valider les valeurs ≥ 85 %
+              </button>
+            </div>
+            <form
+              id="electrical-technical-validation-form"
+              class="electrical-technical-validation-grid"
+              autocomplete="off"
+            ></form>
+          </section>
+
+          <section class="electrical-section electrical-proposals-section">
+            <div class="electrical-section-heading electrical-proposals-heading">
+              <div>
+                <span>ENRICHISSEMENT</span>
+                <h3>Propositions pour les métadonnées</h3>
+              </div>
+              <button
+                id="accept-reliable-electrical-proposals"
+                class="secondary compact"
+                type="button"
+              >
+                Accepter les propositions ≥ 85 %
+              </button>
+            </div>
+            <p id="electrical-proposals-empty" class="electrical-empty-copy">
+              Aucune proposition supplémentaire pour le moment.
+            </p>
+            <div
+              id="electrical-proposals-list"
+              class="electrical-proposals-list"
+            ></div>
+          </section>
+
+          <details class="electrical-details-panel">
+            <summary>Voir les preuves et les éléments techniques</summary>
+
+            <div class="electrical-detail-grid">
+              <section>
+                <h4>Calibres observés</h4>
+                <div id="electrical-calibres-list" class="electrical-chip-list"></div>
+              </section>
+              <section>
+                <h4>Câbles et sections</h4>
+                <div id="electrical-cables-list" class="electrical-chip-list"></div>
+              </section>
+              <section>
+                <h4>Tableaux aval</h4>
+                <div id="electrical-downstream-list" class="electrical-chip-list"></div>
+              </section>
+            </div>
+
+            <section class="electrical-circuits-section">
+              <h4>Circuits remarquables</h4>
+              <div class="electrical-table-wrapper">
+                <table class="electrical-circuits-table">
+                  <thead>
+                    <tr>
+                      <th>Repère</th>
+                      <th>Désignation</th>
+                      <th>Protection</th>
+                      <th>Calibre</th>
+                      <th>Alimentation</th>
+                      <th>Page</th>
+                    </tr>
+                  </thead>
+                  <tbody id="electrical-circuits-body"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <div class="electrical-feedback-columns">
+              <section>
+                <h4>Contradictions</h4>
+                <ul id="electrical-contradictions-list"></ul>
+              </section>
+              <section>
+                <h4>Points à vérifier</h4>
+                <ul id="electrical-points-to-verify-list"></ul>
+              </section>
+            </div>
+          </details>
+
+          <div class="electrical-learning-status" aria-live="polite">
+            <div>
+              <span>MÉMOIRE D’APPRENTISSAGE</span>
+              <strong id="electrical-memory-status">Préanalyse non validée</strong>
+              <small id="electrical-memory-detail">
+                Seules tes décisions validées alimentent les futures règles.
+              </small>
+            </div>
+            <span id="electrical-learning-counter">0 document validé</span>
+          </div>
+
+          <div class="electrical-analysis-actions">
+            <button
+              id="save-electrical-decisions-button"
+              type="button"
+            >
+              Enregistrer les décisions
+            </button>
+            <button
+              id="rerun-electrical-analysis-button"
+              class="secondary"
+              type="button"
+            >
+              Relancer la préanalyse
+            </button>
+            <button
+              id="copy-electrical-analysis-button"
+              class="secondary"
+              type="button"
+            >
+              Copier la préanalyse
+            </button>
+            <button
+              id="clear-electrical-analysis-button"
+              class="secondary danger-button"
+              type="button"
+            >
+              Retirer la préanalyse
+            </button>
+          </div>
+        </div>
+      </section>
+
       <div class="command-row">
         <textarea
           id="command-input"
@@ -906,7 +1168,7 @@
         </div>
       </div>
       <p class="footer-technical">
-        ARIA Web v1.4.0 · corrections autoritaires · PDF restauré
+        ARIA Web v1.5.0 · Electrical Analyst · validation humaine
       </p>
       <p class="footer-safety">
         Validation humaine requise avant toute action métier.
@@ -1288,6 +1550,7 @@
   </dialog>
 
   <noscript>JavaScript doit être activé pour utiliser ARIA.</noscript>
-  <script src="sketch.js?v=1.4.1"></script>
+  <script src="sketch.js?v=1.5.0"></script>
+  <script src="electrical.js?v=1.5.0"></script>
 </body>
 </html>

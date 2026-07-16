@@ -1,13 +1,14 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.4.1",
+  version: "1.5.0",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
   memoryApiUrl: "https://aria-core-kappa.vercel.app/api/memory",
   pdfApiUrl: "https://aria-core-kappa.vercel.app/api/pdf",
   documentApiUrl: "https://aria-core-kappa.vercel.app/api/document",
+  electricalApiUrl: "https://aria-core-kappa.vercel.app/api/electrical",
   knowledgeApiUrl: "https://aria-core-kappa.vercel.app/api/knowledge",
   requestTimeoutMs: 180000,
   speechRequestTimeoutMs: 45000,
@@ -15,6 +16,7 @@ const config = window.ARIA_CONFIG || {
   pdfRequestTimeoutMs: 30000,
   pdfUploadTimeoutMs: 300000,
   documentRequestTimeoutMs: 180000,
+  electricalRequestTimeoutMs: 270000,
   knowledgeRequestTimeoutMs: 120000,
   knowledgeUploadTimeoutMs: 300000,
   maxHistoryMessages: 20,
@@ -30,6 +32,8 @@ const config = window.ARIA_CONFIG || {
   autoSpeakKey: "aria.web.voice-output-enabled.v0.8",
   pdfSessionKey: "aria.web.pending-pdf.session.v0.9",
   documentAnalysisSessionKey: "aria.web.document-analysis.session.v1.2",
+  electricalAnalysisSessionKey: "aria.web.electrical-analysis.session.v1.5.0",
+  electricalAnalysisPersistentKey: "aria.web.electrical-analysis.persistent.v1.5.0",
   speechRateKey: "aria.web.speech-rate.v0.6",
   speechVoiceKey: "aria.web.speech-voice.v0.6.1"
 };
@@ -447,6 +451,14 @@ function initializeInterface() {
   loadVoiceSettings();
   loadPendingPdfSession();
   loadDocumentAnalysisSession();
+
+  if (
+    typeof initializeElectricalAnalyst ===
+      "function"
+  ) {
+    initializeElectricalAnalyst();
+  }
+
   restorePendingPdfLocalFile()
     .catch((error) => {
       console.warn(
@@ -630,7 +642,7 @@ async function requestRemoteAria(image = null, pdf = null) {
           : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "1.4.1"
+          version: config.version || "1.5.0"
         }
       }),
       signal: controller.signal
@@ -4777,7 +4789,7 @@ async function requestDocumentClassification(
           client: {
             name: "ARIA-web",
             version:
-              config.version || "1.4.1"
+              config.version || "1.5.0"
           }
         }),
         signal: controller.signal
@@ -6549,7 +6561,7 @@ async function requestDocumentMetadataNormalization(
             name: "ARIA-web",
             version:
               config.version ||
-              "1.4.1"
+              "1.5.0"
           }
         }),
         signal:
@@ -10039,7 +10051,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.4.1").replace(/^v/, "")}`;
+    `v${String(config.version || "1.5.0").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf
@@ -10064,6 +10076,14 @@ function updateInterface() {
   updateImageAttachmentInterface();
   updatePdfAttachmentInterface();
   updateDocumentAnalysisInterface();
+
+  if (
+    typeof updateElectricalAnalystInterface ===
+      "function"
+  ) {
+    updateElectricalAnalystInterface();
+  }
+
   updateMemoryProposalCard();
   updateKnowledgeInterface();
   updateBrainIndicator();

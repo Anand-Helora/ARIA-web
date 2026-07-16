@@ -5,13 +5,14 @@
  * Ne jamais placer de clé OpenAI, de mot de passe ou de secret dans ce fichier.
  */
 window.ARIA_CONFIG = Object.freeze({
-  version: "1.4.1",
+  version: "1.5.0",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
   memoryApiUrl: "https://aria-core-kappa.vercel.app/api/memory",
   pdfApiUrl: "https://aria-core-kappa.vercel.app/api/pdf",
   documentApiUrl: "https://aria-core-kappa.vercel.app/api/document",
+  electricalApiUrl: "https://aria-core-kappa.vercel.app/api/electrical",
   knowledgeApiUrl: "https://aria-core-kappa.vercel.app/api/knowledge",
   requestTimeoutMs: 180000,
   speechRequestTimeoutMs: 45000,
@@ -19,6 +20,7 @@ window.ARIA_CONFIG = Object.freeze({
   pdfRequestTimeoutMs: 30000,
   pdfUploadTimeoutMs: 300000,
   documentRequestTimeoutMs: 180000,
+  electricalRequestTimeoutMs: 210000,
   knowledgeRequestTimeoutMs: 120000,
   knowledgeUploadTimeoutMs: 300000,
   maxHistoryMessages: 20,
@@ -36,6 +38,8 @@ window.ARIA_CONFIG = Object.freeze({
   pdfPersistentKey: "aria.web.pending-pdf.persistent.v1.4.1",
   documentAnalysisSessionKey: "aria.web.document-analysis.session.v1.0",
   documentAnalysisPersistentKey: "aria.web.document-analysis.persistent.v1.4.1",
+  electricalAnalysisSessionKey: "aria.web.electrical-analysis.session.v1.5.0",
+  electricalAnalysisPersistentKey: "aria.web.electrical-analysis.persistent.v1.5.0",
   speechRateKey: "aria.web.speech-rate.v0.6",
   speechVoiceKey: "aria.web.speech-voice.v0.6.1"
 });
