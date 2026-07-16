@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v1.7.0</title>
-  <link rel="stylesheet" href="style.css?v=1.7.0" />
-  <link rel="stylesheet" href="electrical.css?v=1.7.0" />
-  <link rel="stylesheet" href="rooms.css?v=1.7.0" />
+  <title>ARIA — v1.8.0</title>
+  <link rel="stylesheet" href="style.css?v=1.8.0" />
+  <link rel="stylesheet" href="electrical.css?v=1.8.0" />
+  <link rel="stylesheet" href="rooms.css?v=1.8.0" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
-  <script src="config.js?v=1.7.0"></script>
+  <script src="config.js?v=1.8.0"></script>
 </head>
 <body>
   <main id="app-shell">
@@ -27,7 +27,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v1.7.0</span>
+          <span id="version-label" class="version-badge">v1.8.0</span>
         </div>
       </div>
       <div class="header-status">
@@ -942,12 +942,18 @@
         </div>
 
         <div
-          id="room-analysis-error"
-          class="room-analysis-error"
+          id="room-analysis-status"
+          class="room-analysis-status"
+          data-state="idle"
           hidden
+          role="status"
+          aria-live="polite"
         >
-          <strong>Analyse interrompue</strong>
-          <span id="room-analysis-error-text"></span>
+          <span id="room-analysis-status-icon" class="room-analysis-status-icon" aria-hidden="true">◌</span>
+          <div>
+            <strong id="room-analysis-status-title">Analyse en cours</strong>
+            <span id="room-analysis-status-text">ARIA prépare les fiches local.</span>
+          </div>
         </div>
 
         <div
@@ -973,6 +979,10 @@
               <div>
                 <span>Questions</span>
                 <strong id="room-question-count-value">0</strong>
+              </div>
+              <div>
+                <span>Codes BRAIN</span>
+                <strong id="room-brain-code-count-value">0</strong>
               </div>
             </div>
           </section>
@@ -1020,6 +1030,21 @@
               <strong id="room-question-text"></strong>
               <p id="room-question-reason"></p>
               <div id="room-question-options" class="room-question-options"></div>
+              <div
+                id="room-question-learning-options"
+                class="room-question-learning-options"
+                hidden
+              >
+                <label>
+                  <input id="room-question-apply-similar" type="checkbox" checked />
+                  <span>Appliquer à tous les éléments identiques du dossier</span>
+                </label>
+                <label>
+                  <input id="room-question-remember-brain" type="checkbox" checked />
+                  <span>Mémoriser cette codification dans BRAIN</span>
+                </label>
+                <small id="room-question-learning-summary"></small>
+              </div>
               <div class="room-answer-row">
                 <input
                   id="room-answer-input"
@@ -1063,6 +1088,27 @@
           </section>
         </div>
       </section>
+
+      <dialog id="room-detail-dialog" class="room-detail-dialog">
+        <article class="room-detail-shell">
+          <header class="room-detail-header">
+            <div>
+              <span id="room-detail-kicker" class="room-label">Fiche local détaillée</span>
+              <h2 id="room-detail-title">Local</h2>
+              <p id="room-detail-subtitle"></p>
+            </div>
+            <button
+              id="close-room-detail"
+              class="room-detail-close"
+              type="button"
+              aria-label="Fermer la fiche détaillée"
+            >
+              ×
+            </button>
+          </header>
+          <div id="room-detail-content" class="room-detail-content"></div>
+        </article>
+      </dialog>
 
       <section
         id="electrical-analysis-card"
@@ -1367,7 +1413,7 @@
         </div>
       </div>
       <p class="footer-technical">
-        ARIA Web v1.7.0 · HELOISE/NORAH · ATOMBIM · CPV · questions synchronisées
+        ARIA Web v1.8.0 · HELOISE/NORAH · ATOMBIM · CPV · questions synchronisées
       </p>
       <p class="footer-safety">
         Validation humaine requise avant toute action métier.
@@ -1749,6 +1795,6 @@
   </dialog>
 
   <noscript>JavaScript doit être activé pour utiliser ARIA.</noscript>
-  <script src="sketch.js?v=1.7.0"></script>
+  <script src="sketch.js?v=1.8.0"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.7.0",
+  version: "1.8.0",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -664,7 +664,7 @@ function loadRoomModule() {
   window.__ariaRoomModulePromise = new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src = `rooms.js?v=${encodeURIComponent(
-      config.version || "1.7.0"
+      config.version || "1.8.0"
     )}`;
     script.async = true;
     script.dataset.ariaRoomModule = "true";
@@ -10423,18 +10423,25 @@ function removeMessageElement(id) {
   document.getElementById(id)?.remove();
 }
 
-function clearConversation() {
-  if (!window.confirm("Effacer toute la conversation enregistrée dans ce navigateur ?")) return;
-
+function clearConversationForAnalysis() {
   ariaState.history = [];
 
   try {
     localStorage.removeItem(config.localStorageKey);
   } catch (error) {
-    console.warn("Unable to clear local history:", error);
+    console.warn("Unable to clear local history before analysis:", error);
   }
 
   getElement("conversation").replaceChildren();
+  updateConversationCount();
+}
+
+window.clearConversationForAnalysis = clearConversationForAnalysis;
+
+function clearConversation() {
+  if (!window.confirm("Effacer toute la conversation enregistrée dans ce navigateur ?")) return;
+
+  clearConversationForAnalysis();
   addMessage("assistant", "Conversation effacée. Nous repartons sur une base propre.", false);
   updateConversationCount();
   setState("idle", "Conversation effacée.", getModeDetail());
@@ -10554,7 +10561,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.7.0").replace(/^v/, "")}`;
+    `v${String(config.version || "1.8.0").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf
