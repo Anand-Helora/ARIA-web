@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.6.3",
+  version: "1.7.0",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -664,7 +664,7 @@ function loadRoomModule() {
   window.__ariaRoomModulePromise = new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src = `rooms.js?v=${encodeURIComponent(
-      config.version || "1.6.3"
+      config.version || "1.7.0"
     )}`;
     script.async = true;
     script.dataset.ariaRoomModule = "true";
@@ -10554,7 +10554,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.6.3").replace(/^v/, "")}`;
+    `v${String(config.version || "1.7.0").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf

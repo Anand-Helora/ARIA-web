@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v1.6.3</title>
-  <link rel="stylesheet" href="style.css?v=1.6.3" />
-  <link rel="stylesheet" href="electrical.css?v=1.6.3" />
-  <link rel="stylesheet" href="rooms.css?v=1.6.3" />
+  <title>ARIA — v1.7.0</title>
+  <link rel="stylesheet" href="style.css?v=1.7.0" />
+  <link rel="stylesheet" href="electrical.css?v=1.7.0" />
+  <link rel="stylesheet" href="rooms.css?v=1.7.0" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
-  <script src="config.js?v=1.6.3"></script>
+  <script src="config.js?v=1.7.0"></script>
 </head>
 <body>
   <main id="app-shell">
@@ -27,7 +27,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v1.6.3</span>
+          <span id="version-label" class="version-badge">v1.7.0</span>
         </div>
       </div>
       <div class="header-status">
@@ -892,6 +892,8 @@
               <span>Locaux</span>
               <span>Équipements</span>
               <span>Influences</span>
+              <span>GMAO HELOISE</span>
+              <span>CPV marchés</span>
             </div>
           </div>
           <span
@@ -1030,7 +1032,7 @@
                   class="primary compact"
                   type="button"
                 >
-                  Enregistrer
+                  Enregistrer et appliquer
                 </button>
                 <button
                   id="skip-room-question"
@@ -1048,7 +1050,7 @@
               <span class="room-label">Export</span>
               <strong id="room-export-status">Préparation des données</strong>
               <small>
-                Classeur HELORA contrôlé : sommaire, fiches imprimables et tables DATA.
+                Classeur HELORA contrôlé : fiches matérialisées, inventaire GMAO, questions, anomalies et préparation CPV des marchés.
               </small>
             </div>
             <button
@@ -1365,7 +1367,7 @@
         </div>
       </div>
       <p class="footer-technical">
-        ARIA Web v1.6.3 · Fiches local · export Excel HELORA
+        ARIA Web v1.7.0 · HELOISE/NORAH · ATOMBIM · CPV · questions synchronisées
       </p>
       <p class="footer-safety">
         Validation humaine requise avant toute action métier.
@@ -1747,6 +1749,6 @@
   </dialog>
 
   <noscript>JavaScript doit être activé pour utiliser ARIA.</noscript>
-  <script src="sketch.js?v=1.6.3"></script>
+  <script src="sketch.js?v=1.7.0"></script>
 </body>
 </html>

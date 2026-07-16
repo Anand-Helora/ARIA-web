@@ -401,3 +401,15 @@
   opacity: 1;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
+
+
+/* v1.7.0 — codes HELOISE, GMAO et CPV */
+.room-group-label { display:block; margin-top:4px; color:var(--muted); }
+.room-code-status { display:inline-flex; margin-top:10px; padding:5px 9px; border-radius:999px; font-size:.72rem; font-weight:800; }
+.room-code-status.official { color:var(--success); background:rgba(38,116,92,.16); border:1px solid rgba(124,224,190,.2); }
+.room-code-status.temporary { color:#ffd9a1; background:rgba(164,103,26,.16); border:1px solid rgba(255,196,108,.24); }
+.room-equipment-preview { display:grid; gap:8px; margin-top:12px; }
+.room-equipment-line { display:grid; gap:3px; padding:10px; border:1px solid var(--border); border-radius:12px; background:rgba(4,22,30,.42); }
+.room-equipment-line strong { color:var(--text); }
+.room-equipment-line span { color:var(--accent); font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.76rem; overflow-wrap:anywhere; }
+.room-equipment-line small { color:var(--muted); }

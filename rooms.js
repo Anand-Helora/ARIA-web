@@ -164,7 +164,7 @@ async function runRoomAnalysis() {
         rawMessage
       )
         ? "La réponse d’analyse a été interrompue avant la fin. " +
-          "Le Core doit être mis à jour vers la v0.13.2."
+          "Le Core doit être mis à jour vers la dernière version Room Intelligence."
         : rawMessage;
 
     setState(
@@ -280,9 +280,10 @@ function renderRoomAnalysis() {
   const bureau = analysis?.bureau_profile || {};
   const readiness = analysis?.export_readiness || {};
   const rooms = Array.isArray(analysis?.rooms) ? analysis.rooms : [];
-  const questions = Array.isArray(analysis?.global_questions)
-    ? analysis.global_questions
-    : [];
+  const questions = getRoomQuestionQueue(analysis);
+  const allQuestions = Array.isArray(analysis?.questions)
+    ? analysis.questions
+    : questions;
 
   roomGet("room-dossier-type").textContent =
     dossier.document_type || "Dossier technique";
@@ -293,7 +294,9 @@ function renderRoomAnalysis() {
   roomGet("room-equipment-count-value").textContent =
     String(readiness.equipment_group_count ?? 0);
   roomGet("room-question-count-value").textContent =
-    String(questions.length);
+    String(allQuestions.filter(question =>
+      !["answered", "accepted", "resolved"].includes(question?.status)
+    ).length);
 
   roomGet("room-bureau-name").textContent =
     bureau.detected_name || "Bureau non déterminé";
@@ -309,7 +312,7 @@ function renderRoomAnalysis() {
   roomGet("room-export-status").textContent =
     readiness.ready
       ? "Données prêtes pour export"
-      : `${questions.length} point(s) à valider avant export définitif`;
+      : `${readiness.blocking_question_count || 0} bloquant(s) · ${readiness.questions_remaining ?? questions.length} point(s) restant(s)`;
 }
 
 function renderRoomList(rooms) {
@@ -320,58 +323,60 @@ function renderRoomList(rooms) {
     const article = document.createElement("article");
     article.className = "room-card";
 
-    const influences = Array.isArray(room.influences)
-      ? room.influences
-      : [];
-    const equipment = Array.isArray(room.equipment)
-      ? room.equipment
-      : [];
+    const influences = Array.isArray(room.influences) ? room.influences : [];
+    const equipment = Array.isArray(room.equipment) ? room.equipment : [];
+    const officialCode = room.official_local_code || "";
+    const displayCode = officialCode || room.temporary_local_code || room.local_id || "Local à confirmer";
+    const codeLabel = officialCode ? "Code HELOISE" : "Code temporaire";
+    const targetCodes = [room.local_id, room.temporary_local_code, room.official_local_code].filter(Boolean);
+    const openRoomQuestions = getRoomQuestionQueue(ariaState.roomAnalysis)
+      .filter(question => (question.target_entity_ids || []).some(id => targetCodes.includes(id)));
+    const cpvCount = equipment.filter(item => item.cpv_supply_code || item.cpv_work_code).length;
+    const occurrenceCount = equipment.reduce(
+      (sum, item) => sum + (Array.isArray(item.occurrence_ids) ? item.occurrence_ids.length : 0),
+      0
+    );
 
     article.innerHTML = `
       <div class="room-card-heading">
         <div>
-          <span>${escapeRoomHtml(room.local_id || "Local à confirmer")}</span>
-          <h4>${escapeRoomHtml(
-            room.projected_name ||
-            room.existing_name ||
-            "Local sans nom"
-          )}</h4>
+          <span>${escapeRoomHtml(codeLabel)}</span>
+          <h4>${escapeRoomHtml(displayCode)}</h4>
+          <small class="room-group-label">${escapeRoomHtml(room.group_label || room.projected_name || "")}</small>
         </div>
         <strong>${Math.round((Number(room.confidence) || 0) * 100)} %</strong>
       </div>
+      <div class="room-code-status ${officialCode ? "official" : "temporary"}">
+        ${officialCode ? "✓ code officiel normalisé" : "⚠ numéro officiel à attribuer"}
+      </div>
       <p>${escapeRoomHtml(room.summary || "")}</p>
       <dl class="room-card-grid">
-        <div>
-          <dt>Existant</dt>
-          <dd>${escapeRoomHtml(room.existing_name || "—")}</dd>
-        </div>
-        <div>
-          <dt>Projeté</dt>
-          <dd>${escapeRoomHtml(room.projected_name || "—")}</dd>
-        </div>
-        <div>
-          <dt>Surface projetée</dt>
-          <dd>${Number(room.projected_surface_m2) || 0} m²</dd>
-        </div>
-        <div>
-          <dt>Équipements groupés</dt>
-          <dd>${equipment.length}</dd>
-        </div>
-        <div>
-          <dt>Influences proposées</dt>
-          <dd>${influences.length}</dd>
-        </div>
-        <div>
-          <dt>Points à vérifier</dt>
-          <dd>${(room.questions || []).length + (room.contradictions || []).length}</dd>
-        </div>
+        <div><dt>Existant</dt><dd>${escapeRoomHtml(room.existing_name || "—")}</dd></div>
+        <div><dt>Projeté</dt><dd>${escapeRoomHtml(room.projected_name || "—")}</dd></div>
+        <div><dt>Surface projetée</dt><dd>${Number(room.projected_surface_m2) || 0} m²</dd></div>
+        <div><dt>Groupes d’éléments</dt><dd>${equipment.length}</dd></div>
+        <div><dt>IDs GMAO générés</dt><dd>${occurrenceCount}</dd></div>
+        <div><dt>CPV proposés</dt><dd>${cpvCount}</dd></div>
+        <div><dt>Influences</dt><dd>${influences.length}</dd></div>
+        <div><dt>Questions ouvertes</dt><dd>${openRoomQuestions.length}</dd></div>
       </dl>
       <details>
-        <summary>Voir les premières détections</summary>
-        <div class="room-chip-list">
-          ${equipment.slice(0, 12).map((item) =>
-            `<span>${escapeRoomHtml(item.label || item.canonical_type)} × ${item.quantity}</span>`
-          ).join("") || "<span>Aucun équipement confirmé</span>"}
+        <summary>Voir nomenclature, éléments et CPV</summary>
+        <div class="room-equipment-preview">
+          ${equipment.slice(0, 14).map((item) => {
+            const ids = Array.isArray(item.occurrence_ids) ? item.occurrence_ids : [];
+            const idText = ids.length
+              ? ids.slice(0, 3).join(" · ") + (ids.length > 3 ? ` · +${ids.length - 3}` : "")
+              : item.element_code
+                ? `${item.element_code} · quantité à confirmer`
+                : "code ATOMBIM/HELORA à confirmer";
+            const cpv = [item.cpv_supply_code, item.cpv_work_code].filter(Boolean).join(" / ");
+            return `<div class="room-equipment-line">
+              <strong>${escapeRoomHtml(item.label || item.canonical_type)} × ${Number(item.quantity) || 0}</strong>
+              <span>${escapeRoomHtml(idText)}</span>
+              ${cpv ? `<small>CPV proposé : ${escapeRoomHtml(cpv)}</small>` : ""}
+            </div>`;
+          }).join("") || '<span class="room-empty-copy">Aucun équipement confirmé</span>'}
         </div>
       </details>
     `;
@@ -380,19 +385,33 @@ function renderRoomList(rooms) {
   }
 
   if (rooms.length === 0) {
-    container.innerHTML =
-      '<p class="room-empty-copy">Aucun local n’a pu être reconstruit.</p>';
+    container.innerHTML = '<p class="room-empty-copy">Aucun local n’a pu être reconstruit.</p>';
   }
 }
 
-function getCurrentRoomQuestion() {
-  const questions = Array.isArray(
-    ariaState.roomAnalysis?.global_questions
-  )
-    ? ariaState.roomAnalysis.global_questions
-    : [];
+function getRoomQuestionQueue(analysis = ariaState.roomAnalysis) {
+  const questions = Array.isArray(analysis?.questions)
+    ? analysis.questions
+    : Array.isArray(analysis?.global_questions)
+      ? analysis.global_questions
+      : [];
 
-  return questions[roomCurrentQuestionIndex] || null;
+  const priority = { high: 0, medium: 1, low: 2 };
+  const scope = { project: 0, document: 0, bureau: 1, equipment_type: 2, local: 3, equipment: 4 };
+
+  return questions
+    .filter(question => !["answered", "accepted", "resolved", "deferred"].includes(question?.status))
+    .sort((a, b) =>
+      Number(Boolean(b?.blocking)) - Number(Boolean(a?.blocking)) ||
+      (priority[a?.priority] ?? 9) - (priority[b?.priority] ?? 9) ||
+      (scope[a?.scope] ?? 9) - (scope[b?.scope] ?? 9) ||
+      String(a?.question || "").localeCompare(String(b?.question || ""), "fr")
+    );
+}
+
+function getCurrentRoomQuestion() {
+  const questions = getRoomQuestionQueue();
+  return questions[roomCurrentQuestionIndex] || questions[0] || null;
 }
 
 function renderRoomQuestion() {
@@ -403,8 +422,9 @@ function renderRoomQuestion() {
 
   if (!question) return;
 
+  const target = (question.target_entity_ids || []).filter(Boolean).join(" · ");
   roomGet("room-question-scope").textContent =
-    `${question.scope || "document"} · ${question.priority || "priorité normale"}`;
+    `${question.blocking ? "BLOQUANT · " : ""}${question.scope || "document"} · ${question.priority || "priorité normale"}${target ? ` · ${target}` : ""}`;
   roomGet("room-question-text").textContent =
     question.question;
   roomGet("room-question-reason").textContent =
@@ -420,7 +440,7 @@ function renderRoomQuestion() {
     button.textContent = option;
     button.addEventListener("click", () => {
       roomGet("room-answer-input").value = option;
-      saveCurrentRoomAnswer();
+      void saveCurrentRoomAnswer();
     });
     options.append(button);
   }
@@ -428,40 +448,73 @@ function renderRoomQuestion() {
   roomGet("room-answer-input").value = "";
 }
 
-function saveCurrentRoomAnswer(forcedValue) {
+async function saveCurrentRoomAnswer(forcedValue) {
   const question = getCurrentRoomQuestion();
-  if (!question) return;
+  if (!question) return false;
 
-  const value = String(
-    forcedValue ?? roomGet("room-answer-input").value
-  ).trim();
-
+  const value = String(forcedValue ?? roomGet("room-answer-input").value).trim();
   if (!value) {
-    setState(
-      "idle",
-      "Réponse requise.",
-      "Réponds, choisis une option ou utilise « Je ne sais pas »."
-    );
-    return;
+    setState("idle", "Réponse requise.", "Réponds, choisis une option ou utilise « Je ne sais pas ».");
+    return false;
   }
 
-  roomAnswers.push({
+  const answer = {
     question_id: question.question_id,
     question: question.question,
     answer: value,
     scope: question.scope,
+    status: value === "Je ne sais pas" ? "deferred" : "answered",
     answered_at: new Date().toISOString()
-  });
+  };
 
-  roomCurrentQuestionIndex += 1;
-  renderRoomQuestion();
+  const existingIndex = roomAnswers.findIndex(item => item.question_id === answer.question_id);
+  if (existingIndex >= 0) roomAnswers[existingIndex] = answer;
+  else roomAnswers.push(answer);
 
-  if (!getCurrentRoomQuestion()) {
+  const input = roomGet("room-answer-input");
+  const saveButton = roomGet("save-room-answer");
+  input.disabled = true;
+  saveButton.disabled = true;
+  saveButton.textContent = "Application…";
+
+  const request = createRoomRequestController(config.roomsRequestTimeoutMs || 210000);
+  try {
+    const response = await fetch(config.roomsApiUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${ariaState.accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        action: "apply_answers",
+        analysis: ariaState.roomAnalysis,
+        answers: [answer]
+      }),
+      signal: request.controller.signal
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data?.ok || !data?.analysis) {
+      throw new Error(data?.error || "La réponse n’a pas pu être appliquée aux fiches.");
+    }
+
+    ariaState.roomAnalysis = data.analysis;
+    roomCurrentQuestionIndex = 0;
+    updateRoomIntelligenceInterface();
+    const remaining = getRoomQuestionQueue().length;
     setState(
       "idle",
-      "Entretien terminé.",
-      `${roomAnswers.length} réponse(s) ont été préparées pour validation.`
+      value === "Je ne sais pas" ? "Question reportée." : "Réponse appliquée.",
+      remaining ? `${remaining} question(s) restent à traiter.` : "Toutes les questions actuellement détectées ont été traitées."
     );
+    return true;
+  } catch (error) {
+    setState("error", "La réponse n’a pas été appliquée.", getReadableError(error));
+    return false;
+  } finally {
+    request.clear();
+    input.disabled = false;
+    saveButton.disabled = false;
+    saveButton.textContent = "Enregistrer et appliquer";
   }
 }
 
@@ -479,11 +532,11 @@ async function startRoomVoiceInterview() {
   await speakText(question.question);
 
   const started = window.startAriaRoomVoiceCapture?.(
-    (transcript) => {
+    async (transcript) => {
       roomGet("room-answer-input").value = transcript;
-      saveCurrentRoomAnswer();
+      const applied = await saveCurrentRoomAnswer();
       const nextQuestion = getCurrentRoomQuestion();
-      if (nextQuestion) {
+      if (applied && nextQuestion) {
         window.setTimeout(
           () => startRoomVoiceInterview(),
           500

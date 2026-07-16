@@ -1,7 +1,12 @@
-# ARIA Web v1.6.3 — Export Excel HELORA
+# ARIA Web v1.7.0 — HELOISE / ATOMBIM / CPV
 
-- le bouton d’export télécharge désormais un vrai fichier `.xlsx` ;
-- le JSON technique n’est plus le livrable principal ;
-- le classeur contient sommaire, fiche interactive, fiches imprimables,
-  équipements, points à valider et feuilles DATA ;
-- l’état PROVISOIRE est conservé lorsque des réponses manquent.
+- affiche le code HELOISE officiel ou le code temporaire ;
+- montre le groupe de travaux séparément ;
+- affiche les identifiants GMAO générés ;
+- montre les propositions CPV ;
+- utilise la liste centrale `analysis.questions` ;
+- pose aussi les questions locales, équipements et contradictions ;
+- applique chaque réponse immédiatement via `apply_answers` ;
+- propage la réponse aux fiches et à l'export Excel ;
+- entretien vocal conservé ;
+- export Excel enrichi : GMAO, CPV, questions et anomalies.
