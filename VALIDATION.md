@@ -1,12 +1,12 @@
-# Validation ARIA Web v1.6.0
+# Validation ARIA Web v1.6.1
 
-- [x] démarrage vierge conservé
-- [x] Room Intelligence chargé uniquement au clic
-- [x] Electrical Analyst désactivé sans suppression
-- [x] carte masquée sans PDF classé
-- [x] entretien vocal en capture unique
-- [x] réponse écrite et options rapides
-- [x] validation par exception
-- [x] téléchargement des données JSON de contrôle
-- [x] aucun secret dans ARIA Web
-- [x] interface mobile-first et palette HELORA
+- [x] `pdf.size` transmis à `/api/rooms`
+- [x] `pdf.detail` transmis
+- [x] PDF de moins de 45 Mo autorisé
+- [x] bouton réactivé après erreur
+- [x] libellé « Relancer l'analyse » après erreur
+- [x] aucun état « Chargement du module » persistant
+- [x] interface sombre cohérente avec ARIA
+- [x] contraste des textes amélioré
+- [x] interface mobile conservée
+- [x] aucun secret côté Web

@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v1.6.0</title>
-  <link rel="stylesheet" href="style.css?v=1.6.0" />
-  <link rel="stylesheet" href="electrical.css?v=1.6.0" />
-  <link rel="stylesheet" href="rooms.css?v=1.6.0" />
+  <title>ARIA — v1.6.1</title>
+  <link rel="stylesheet" href="style.css?v=1.6.1" />
+  <link rel="stylesheet" href="electrical.css?v=1.6.1" />
+  <link rel="stylesheet" href="rooms.css?v=1.6.1" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
-  <script src="config.js?v=1.6.0"></script>
+  <script src="config.js?v=1.6.1"></script>
 </head>
 <body>
   <main id="app-shell">
@@ -27,7 +27,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v1.6.0</span>
+          <span id="version-label" class="version-badge">v1.6.1</span>
         </div>
       </div>
       <div class="header-status">
@@ -885,9 +885,14 @@
             <span class="eyebrow">ATLAS Tome 3 · Fiches local</span>
             <h2>Reconstruction des locaux</h2>
             <p>
-              ARIA regroupe tous les folios, détecte le bureau d’études,
-              propose les équipements et prépare les influences externes.
+              Une fiche consolidée par local, alimentée par tous les folios.
             </p>
+            <div class="room-capabilities" aria-label="Étapes de l’analyse">
+              <span>Bureau d’études</span>
+              <span>Locaux</span>
+              <span>Équipements</span>
+              <span>Influences</span>
+            </div>
           </div>
           <span
             id="room-analysis-badge"
@@ -901,10 +906,10 @@
         >
           <div class="room-empty-icon" aria-hidden="true">⌂</div>
           <div>
-            <strong>Créer les fiches local</strong>
+            <strong>Le dossier est prêt</strong>
             <p>
-              Analyse d’abord et classe le PDF. ARIA reconstruira ensuite
-              les locaux à partir de tous les folios.
+              ARIA va relier les plans, les locaux et les disciplines,
+              puis afficher uniquement les points à confirmer.
             </p>
           </div>
           <button
@@ -912,7 +917,7 @@
             class="primary"
             type="button"
           >
-            Analyser les locaux
+            Créer les fiches local
           </button>
         </div>
 
@@ -1360,7 +1365,7 @@
         </div>
       </div>
       <p class="footer-technical">
-        ARIA Web v1.6.0 · Fiches local · profils bureaux · entretien vocal
+        ARIA Web v1.6.1 · Fiches local · interface intégrée · PDF corrigé
       </p>
       <p class="footer-safety">
         Validation humaine requise avant toute action métier.
@@ -1742,6 +1747,6 @@
   </dialog>
 
   <noscript>JavaScript doit être activé pour utiliser ARIA.</noscript>
-  <script src="sketch.js?v=1.6.0"></script>
+  <script src="sketch.js?v=1.6.1"></script>
 </body>
 </html>

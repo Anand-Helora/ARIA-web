@@ -78,6 +78,23 @@ async function runRoomAnalysis() {
     return;
   }
 
+  const activePdfSize =
+    Number(
+      ariaState.pendingPdf.size ||
+      ariaState.pendingPdfLocalFile?.size ||
+      0
+    );
+
+  if (
+    Number.isFinite(activePdfSize) &&
+    activePdfSize > 45 * 1024 * 1024
+  ) {
+    ariaState.roomModuleError =
+      "Ce PDF dépasse la limite de 45 Mo.";
+    updateRoomIntelligenceInterface();
+    return;
+  }
+
   ariaState.roomAnalysisBusy = true;
   ariaState.roomModuleError = "";
   roomCurrentQuestionIndex = 0;
@@ -102,9 +119,19 @@ async function runRoomAnalysis() {
         body: JSON.stringify({
           action: "analyze",
           pdf: {
-            pathname: ariaState.pendingPdf.pathname,
-            name: ariaState.pendingPdf.name,
-            url: ariaState.pendingPdf.url
+            pathname:
+              ariaState.pendingPdf.pathname,
+            name:
+              ariaState.pendingPdf.name,
+            size:
+              Number(
+                ariaState.pendingPdf.size ||
+                ariaState.pendingPdfLocalFile?.size ||
+                0
+              ),
+            detail:
+              ariaState.pendingPdf.detail ||
+              "auto"
           },
           classification: ariaState.documentAnalysis
         }),
@@ -206,6 +233,8 @@ function updateRoomIntelligenceInterface() {
 
   const hasAnalysis = Boolean(ariaState.roomAnalysis);
 
+  ariaState.roomModuleLoading = false;
+
   empty.hidden = hasAnalysis || ariaState.roomAnalysisBusy;
   content.hidden = !hasAnalysis || ariaState.roomAnalysisBusy;
 
@@ -213,12 +242,23 @@ function updateRoomIntelligenceInterface() {
     ariaState.roomAnalysisBusy ||
     ariaState.documentAnalysisBusy;
 
+  runButton.textContent =
+    ariaState.roomAnalysisBusy
+      ? "Analyse du dossier…"
+      : ariaState.roomModuleError
+        ? "Relancer l’analyse"
+        : hasAnalysis
+          ? "Actualiser les fiches"
+          : "Créer les fiches local";
+
   roomGet("room-analysis-badge").textContent =
     ariaState.roomAnalysisBusy
       ? "Analyse en cours"
-      : hasAnalysis
-        ? "Proposition prête"
-        : "À analyser";
+      : ariaState.roomModuleError
+        ? "À relancer"
+        : hasAnalysis
+          ? "Proposition prête"
+          : "Prêt";
 
   if (hasAnalysis) {
     renderRoomAnalysis();

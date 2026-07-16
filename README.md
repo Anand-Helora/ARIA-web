@@ -1,15 +1,11 @@
-# ARIA Web v1.6.0 — Room Intelligence
+# ARIA Web v1.6.1 — Room Intelligence
 
-Cette version ajoute le premier socle du module ATLAS Tome 3 :
+Correctifs :
 
-- reconnaissance d'un folio de soumission ;
-- détection du bureau d'études et de son profil ;
-- reconstruction des locaux à partir de plusieurs folios ;
-- équipements groupés et sourcés ;
-- propositions d'influences externes par zone ;
-- questions indispensables uniquement ;
-- entretien vocal question/réponse ;
-- export JSON de contrôle.
-
-Le module Electrical Analyst est conservé mais désactivé dans `config.js`.
-L'export Excel final sera produit à partir du modèle HELORA validé.
+- transmission de la taille réelle du PDF vers ARIA Core ;
+- prise en charge d'un PDF réassocié localement ;
+- bouton d'analyse remis à jour après succès ou erreur ;
+- message de relance clair ;
+- nouvelle carte sombre intégrée au design général d'ARIA ;
+- présentation plus compacte ;
+- module Electrical Analyst toujours désactivé mais conservé.
