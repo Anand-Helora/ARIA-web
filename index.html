@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v1.4.0</title>
-  <link rel="stylesheet" href="style.css?v=1.4.0" />
+  <title>ARIA — v1.4.1</title>
+  <link rel="stylesheet" href="style.css?v=1.4.1" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
-  <script src="config.js?v=1.4.0"></script>
+  <script src="config.js?v=1.4.1"></script>
 </head>
 <body>
   <main id="app-shell">
@@ -17,7 +17,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v1.4.0</span>
+          <span id="version-label" class="version-badge">v1.4.1</span>
         </div>
       </div>
       <div class="header-status">
@@ -137,6 +137,21 @@
     <section id="status-panel" class="status-panel" aria-live="polite">
       <p id="status-label">ARIA est prête.</p>
       <p id="detail-label">Connecte-toi au moteur privé pour commencer.</p>
+      <div
+        id="status-diagnostic-row"
+        class="status-diagnostic-row"
+        hidden
+      >
+        <span>Référence</span>
+        <code id="status-diagnostic-code"></code>
+        <button
+          id="copy-status-diagnostic"
+          class="secondary compact"
+          type="button"
+        >
+          Copier
+        </button>
+      </div>
     </section>
 
     <section id="connection-panel" class="connection-panel" aria-labelledby="connection-title">
@@ -278,11 +293,34 @@
       >
         <div class="pdf-attachment-icon" aria-hidden="true">PDF</div>
         <div class="pdf-attachment-copy">
-          <strong id="pdf-attachment-name">Document PDF</strong>
+          <div class="pdf-attachment-title-row">
+            <strong id="pdf-attachment-name">Document PDF</strong>
+            <span
+              id="pdf-local-status-badge"
+              class="pdf-local-status-badge absent"
+            >
+              PDF local absent
+            </span>
+          </div>
           <span id="pdf-attachment-details"></span>
           <small id="pdf-attachment-status">
             Stockage privé temporaire
           </small>
+
+          <dl class="pdf-name-comparison">
+            <div>
+              <dt>Nom original</dt>
+              <dd>
+                <code id="pdf-original-filename">—</code>
+              </dd>
+            </div>
+            <div>
+              <dt>Nom final</dt>
+              <dd>
+                <code id="pdf-final-filename">—</code>
+              </dd>
+            </div>
+          </dl>
         </div>
 
         <div
@@ -410,6 +448,94 @@
               aria-live="polite"
             ></div>
           </div>
+
+          <section
+            id="document-workflow-checklist"
+            class="document-workflow-checklist"
+            aria-labelledby="document-workflow-title"
+          >
+            <div class="document-workflow-heading">
+              <div>
+                <span class="document-workflow-kicker">CONTRÔLE DU PARCOURS</span>
+                <strong id="document-workflow-title">
+                  État du document
+                </strong>
+              </div>
+              <span
+                id="document-workflow-score"
+                class="document-workflow-score"
+              >
+                0 / 5
+              </span>
+            </div>
+
+            <ul class="document-workflow-list">
+              <li id="workflow-check-analysis" class="pending">
+                <span class="workflow-check-icon" aria-hidden="true">○</span>
+                <span>
+                  <strong>PDF analysé</strong>
+                  <small id="workflow-check-analysis-detail">Analyse à lancer</small>
+                </span>
+              </li>
+              <li id="workflow-check-metadata" class="pending">
+                <span class="workflow-check-icon" aria-hidden="true">○</span>
+                <span>
+                  <strong>Métadonnées complètes</strong>
+                  <small id="workflow-check-metadata-detail">Champs à compléter</small>
+                </span>
+              </li>
+              <li id="workflow-check-memory" class="pending">
+                <span class="workflow-check-icon" aria-hidden="true">○</span>
+                <span>
+                  <strong>Corrections mémorisées</strong>
+                  <small id="workflow-check-memory-detail">Validation humaine attendue</small>
+                </span>
+              </li>
+              <li id="workflow-check-name" class="pending">
+                <span class="workflow-check-icon" aria-hidden="true">○</span>
+                <span>
+                  <strong>Nom validé</strong>
+                  <small id="workflow-check-name-detail">Nom incomplet</small>
+                </span>
+              </li>
+              <li id="workflow-check-download" class="pending">
+                <span class="workflow-check-icon" aria-hidden="true">○</span>
+                <span>
+                  <strong>PDF disponible au téléchargement</strong>
+                  <small id="workflow-check-download-detail">Source locale requise</small>
+                </span>
+              </li>
+            </ul>
+          </section>
+
+          <details
+            id="document-diagnostics-panel"
+            class="document-diagnostics-panel"
+          >
+            <summary>
+              Diagnostic intégré
+            </summary>
+            <p>
+              Cet état remplace les vérifications dans la console du navigateur.
+            </p>
+            <pre id="document-diagnostics-output"></pre>
+            <div class="document-diagnostics-actions">
+              <button
+                id="copy-document-diagnostics"
+                class="secondary compact"
+                type="button"
+              >
+                Copier le diagnostic
+              </button>
+              <button
+                id="retry-local-pdf-restore"
+                class="secondary compact"
+                type="button"
+              >
+                Relancer la restauration du PDF
+              </button>
+            </div>
+          </details>
 
           <details
             id="document-editor-panel"
@@ -695,6 +821,13 @@
             type="button"
           >
             Analyser et classer
+          </button>
+          <button
+            id="new-document-button"
+            class="secondary compact"
+            type="button"
+          >
+            Nouveau document
           </button>
           <button
             id="remove-pdf-button"
@@ -1155,6 +1288,6 @@
   </dialog>
 
   <noscript>JavaScript doit être activé pour utiliser ARIA.</noscript>
-  <script src="sketch.js?v=1.4.0"></script>
+  <script src="sketch.js?v=1.4.1"></script>
 </body>
 </html>

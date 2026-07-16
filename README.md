@@ -1,24 +1,38 @@
-# ARIA Web v1.4.0 — corrections autoritaires et PDF restauré
+# ARIA Web v1.4.1 — Stabilisation documentaire
 
-## Diagnostic confirmé par la console
+Base : ARIA Web v1.4.0, conservée comme version stable.
 
-L’état réel montrait :
+## Ajouts
+
+- bouton `Nouveau document` ;
+- confirmation avant retrait de la fiche active ;
+- état visible du PDF local :
+  - disponible ;
+  - restauration en cours ;
+  - à réassocier ;
+  - absent ;
+- comparaison du nom original et du nom final ;
+- checklist du parcours en cinq étapes ;
+- diagnostic intégré copiable ;
+- référence copiable pour chaque erreur ;
+- bouton de relance de la restauration locale ;
+- persistance des métadonnées dans `localStorage` ;
+- restauration du PDF depuis `IndexedDB` ;
+- correction : réinitialiser l’analyse ne supprime plus le PDF local.
+
+## Checklist
 
 ```text
-filename_complete = false
-type_document = vide
-PDF local = absent
-lien = masqué
-bouton d’association = masqué
+PDF analysé
+Métadonnées complètes
+Corrections mémorisées
+Nom validé
+PDF disponible au téléchargement
 ```
 
-## Corrections
+## Sécurité
 
-- une réponse ARIA Core vide ne peut plus effacer une valeur saisie ;
-- les valeurs soumises sont la source autoritaire ;
-- la carte est actualisée même si le nom reste incomplet ;
-- si ARIA Core échoue, les corrections restent enregistrées localement avec un avertissement visible ;
-- le bouton `Associer le PDF source` reste visible lorsque le fichier local manque ;
-- le PDF local est conservé dans IndexedDB après son ajout ou sa réassociation ;
-- lors d’un prochain rechargement, ARIA tente de restaurer automatiquement ce PDF local ;
-- le lien direct apparaît dès que le PDF local et toutes les métadonnées sont disponibles.
+- aucune clé OpenAI dans ARIA Web ;
+- le PDF local reste dans le navigateur ;
+- le PDF original n’est jamais renommé ni supprimé ;
+- le bouton `Nouveau document` demande une confirmation.

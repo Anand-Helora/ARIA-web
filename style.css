@@ -2666,3 +2666,261 @@ code {
 .document-save-source-status[hidden] {
   display: none;
 }
+
+
+/* ==========================================================
+   STABILISATION DOCUMENTAIRE — v1.4.1
+   ========================================================== */
+
+.status-diagnostic-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(239, 193, 119, 0.20);
+  font-size: 0.68rem;
+}
+
+.status-diagnostic-row[hidden] {
+  display: none;
+}
+
+.status-diagnostic-row code {
+  overflow-wrap: anywhere;
+  color: var(--warning);
+}
+
+.pdf-attachment-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pdf-local-status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.pdf-local-status-badge.available {
+  color: #9ff4cf;
+  border-color: rgba(83, 225, 168, 0.42);
+  background: rgba(17, 104, 76, 0.28);
+}
+
+.pdf-local-status-badge.restoring {
+  color: #d7f6fa;
+  border-color: rgba(131, 230, 239, 0.36);
+  background: rgba(4, 69, 80, 0.36);
+}
+
+.pdf-local-status-badge.reassociate {
+  color: #ffe1a9;
+  border-color: rgba(239, 193, 119, 0.44);
+  background: rgba(119, 75, 18, 0.26);
+}
+
+.pdf-local-status-badge.absent {
+  color: rgba(231, 239, 241, 0.68);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.pdf-name-comparison {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+}
+
+.pdf-name-comparison > div {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+}
+
+.pdf-name-comparison dt {
+  color: rgba(231, 239, 241, 0.58);
+  font-size: 0.62rem;
+}
+
+.pdf-name-comparison dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.pdf-name-comparison code {
+  display: block;
+  overflow-wrap: anywhere;
+  color: rgba(231, 249, 249, 0.88);
+  font-size: 0.65rem;
+}
+
+.document-workflow-checklist {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(131, 230, 239, 0.22);
+  border-radius: 12px;
+  background: rgba(4, 69, 80, 0.17);
+}
+
+.document-workflow-checklist.complete {
+  border-color: rgba(83, 225, 168, 0.50);
+  background: rgba(17, 104, 76, 0.18);
+}
+
+.document-workflow-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.document-workflow-heading > div {
+  display: grid;
+  gap: 2px;
+}
+
+.document-workflow-kicker {
+  color: rgba(231, 239, 241, 0.56);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.document-workflow-heading strong {
+  color: #ffffff;
+  font-size: 0.79rem;
+}
+
+.document-workflow-score {
+  display: inline-grid;
+  place-items: center;
+  min-width: 48px;
+  min-height: 30px;
+  border-radius: 999px;
+  color: var(--accent-soft);
+  background: rgba(0, 158, 153, 0.16);
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.document-workflow-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.document-workflow-list li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.document-workflow-list li > span:last-child {
+  display: grid;
+  gap: 1px;
+}
+
+.document-workflow-list strong {
+  color: rgba(238, 246, 248, 0.92);
+  font-size: 0.69rem;
+}
+
+.document-workflow-list small {
+  color: rgba(231, 239, 241, 0.58);
+  font-size: 0.61rem;
+}
+
+.workflow-check-icon {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  color: rgba(231, 239, 241, 0.62);
+  font-weight: 900;
+}
+
+.document-workflow-list li.done {
+  background: rgba(17, 104, 76, 0.16);
+}
+
+.document-workflow-list li.done .workflow-check-icon {
+  color: #9ff4cf;
+  border-color: rgba(83, 225, 168, 0.44);
+  background: rgba(83, 225, 168, 0.10);
+}
+
+.document-diagnostics-panel {
+  padding: 10px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.document-diagnostics-panel > summary {
+  cursor: pointer;
+  color: rgba(231, 249, 249, 0.88);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.document-diagnostics-panel p {
+  margin: 8px 0;
+  color: rgba(231, 239, 241, 0.58);
+  font-size: 0.63rem;
+}
+
+.document-diagnostics-panel pre {
+  max-height: 300px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border-radius: 8px;
+  color: #cef6f4;
+  background: rgba(0, 0, 0, 0.28);
+  font-size: 0.61rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.document-diagnostics-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+@media (max-width: 640px) {
+  .pdf-name-comparison > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .document-diagnostics-actions {
+    display: grid;
+  }
+
+  .document-diagnostics-actions button {
+    width: 100%;
+  }
+}

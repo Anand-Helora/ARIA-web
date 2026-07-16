@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.4.0",
+  version: "1.4.1",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -90,6 +90,11 @@ const ariaState = {
   documentCardCommittedAt: "",
   documentSaveSource: "",
   documentSaveWarning: "",
+  lastDiagnosticCode: "",
+  lastDiagnosticMessage: "",
+  lastDiagnosticDetail: "",
+  lastDiagnosticAt: "",
+  newDocumentBusy: false,
   localPdfRestoreBusy: false,
   localPdfRestoreError: "",
   documentDownloadFallbackTimer: null,
@@ -241,6 +246,22 @@ function initializeInterface() {
   getElement("remove-pdf-button").addEventListener(
     "click",
     () => discardPendingPdf(true)
+  );
+  getElement("new-document-button").addEventListener(
+    "click",
+    startNewDocument
+  );
+  getElement("copy-document-diagnostics").addEventListener(
+    "click",
+    copyDocumentDiagnostics
+  );
+  getElement("retry-local-pdf-restore").addEventListener(
+    "click",
+    retryLocalPdfRestore
+  );
+  getElement("copy-status-diagnostic").addEventListener(
+    "click",
+    copyLastDiagnosticCode
   );
   getElement("classify-pdf-button").addEventListener(
     "click",
@@ -609,7 +630,7 @@ async function requestRemoteAria(image = null, pdf = null) {
           : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "1.4.0"
+          version: config.version || "1.4.1"
         }
       }),
       signal: controller.signal
@@ -4517,43 +4538,80 @@ function updateVoiceInterface() {
 
 
 
+function buildDocumentAnalysisStoragePayload() {
+  if (
+    !ariaState.documentAnalysis ||
+    !ariaState.pendingPdf
+  ) {
+    return null;
+  }
+
+  return {
+    pathname:
+      ariaState.pendingPdf.pathname,
+    analysis:
+      ariaState.documentAnalysis,
+    editorMetadata:
+      ariaState.documentEditorMetadata,
+    editorSiteId:
+      ariaState.documentEditorSiteId,
+    cardCommitRevision:
+      ariaState.documentCardCommitRevision,
+    cardCommittedAt:
+      ariaState.documentCardCommittedAt,
+    saveSource:
+      ariaState.documentSaveSource,
+    saveWarning:
+      ariaState.documentSaveWarning,
+    savedAt:
+      new Date().toISOString()
+  };
+}
+
 function saveDocumentAnalysisSession() {
-  try {
-    if (
-      ariaState.documentAnalysis &&
-      ariaState.pendingPdf
-    ) {
-      sessionStorage.setItem(
-        config.documentAnalysisSessionKey,
-        JSON.stringify({
-          pathname:
-            ariaState.pendingPdf.pathname,
-          analysis:
-            ariaState.documentAnalysis,
-          editorMetadata:
-            ariaState.documentEditorMetadata,
-          editorSiteId:
-            ariaState.documentEditorSiteId
-        })
-      );
-    } else {
-      sessionStorage.removeItem(
+  const payload =
+    buildDocumentAnalysisStoragePayload();
+
+  for (
+    const [storage, key]
+    of [
+      [
+        sessionStorage,
         config.documentAnalysisSessionKey
+      ],
+      [
+        localStorage,
+        config.documentAnalysisPersistentKey
+      ]
+    ]
+  ) {
+    try {
+      if (payload) {
+        storage.setItem(
+          key,
+          JSON.stringify(payload)
+        );
+      } else {
+        storage.removeItem(key);
+      }
+    } catch (error) {
+      console.warn(
+        "Impossible de mémoriser le classement documentaire.",
+        error
       );
     }
-  } catch (error) {
-    console.warn(
-      "Impossible de mémoriser le classement documentaire.",
-      error
-    );
   }
 }
 
 function loadDocumentAnalysisSession() {
   try {
-    const raw = sessionStorage.getItem(
-      config.documentAnalysisSessionKey
-    );
+    const raw =
+      sessionStorage.getItem(
+        config.documentAnalysisSessionKey
+      ) ||
+      localStorage.getItem(
+        config.documentAnalysisPersistentKey
+      );
 
     if (
       !raw ||
@@ -4585,10 +4643,26 @@ function loadDocumentAnalysisSession() {
         String(
           parsed.editorSiteId || ""
         );
+      ariaState.documentCardCommitRevision =
+        Number(
+          parsed.cardCommitRevision
+        ) || 0;
+      ariaState.documentCardCommittedAt =
+        String(
+          parsed.cardCommittedAt || ""
+        );
+      ariaState.documentSaveSource =
+        String(
+          parsed.saveSource || ""
+        );
+      ariaState.documentSaveWarning =
+        String(
+          parsed.saveWarning || ""
+        );
     }
   } catch (error) {
     console.warn(
-      "Classement documentaire de session invalide.",
+      "Classement documentaire mémorisé invalide.",
       error
     );
     clearDocumentAnalysis(false);
@@ -4605,10 +4679,6 @@ function clearDocumentAnalysis(
   ariaState.documentEditorSiteId = "";
   ariaState.documentEditorBusy = false;
   ariaState.documentDownloadBusy = false;
-  ariaState.pendingPdfLocalFile =
-    null;
-  ariaState.pendingPdfLocalFileValidated =
-    false;
   ariaState.documentDownloadUrl = "";
   ariaState.documentDownloadFilename = "";
   ariaState.documentDownloadProgress = 0;
@@ -4647,6 +4717,10 @@ function clearDocumentAnalysis(
   ariaState.documentEditMode = false;
   ariaState.documentEditSnapshot = null;
   ariaState.documentEditorDirty = false;
+  ariaState.documentCardCommitRevision = 0;
+  ariaState.documentCardCommittedAt = "";
+  ariaState.documentSaveSource = "";
+  ariaState.documentSaveWarning = "";
 
   if (
     ariaState.documentEditorNormalizationTimer
@@ -4703,7 +4777,7 @@ async function requestDocumentClassification(
           client: {
             name: "ARIA-web",
             version:
-              config.version || "1.4.0"
+              config.version || "1.4.1"
           }
         }),
         signal: controller.signal
@@ -6475,7 +6549,7 @@ async function requestDocumentMetadataNormalization(
             name: "ARIA-web",
             version:
               config.version ||
-              "1.4.0"
+              "1.4.1"
           }
         }),
         signal:
@@ -7343,6 +7417,9 @@ function updateDocumentAnalysisInterface() {
   const removeButton = getElement(
     "remove-pdf-button"
   );
+  const newDocumentButton = getElement(
+    "new-document-button"
+  );
   const copyButton = getElement(
     "copy-document-filename-button"
   );
@@ -7405,6 +7482,12 @@ function updateDocumentAnalysisInterface() {
     ariaState.isBusy ||
     ariaState.pdfBusy ||
     ariaState.documentAnalysisBusy;
+
+  newDocumentButton.disabled =
+    ariaState.newDocumentBusy ||
+    ariaState.pdfBusy ||
+    ariaState.documentAnalysisBusy ||
+    ariaState.documentEditorBusy;
 
   classifyButton.textContent =
     ariaState.documentAnalysisBusy
@@ -7808,6 +7891,491 @@ function updateDocumentAnalysisInterface() {
 
   updateDocumentEditorInterface();
   updateDocumentAnalysisProgressInterface();
+  updateDocumentStabilizationInterface();
+}
+
+function getPdfLocalStatus() {
+  if (!ariaState.pendingPdf) {
+    return {
+      code: "absent",
+      label: "PDF local absent",
+      detail: "Aucun document actif."
+    };
+  }
+
+  if (ariaState.localPdfRestoreBusy) {
+    return {
+      code: "restoring",
+      label: "Restauration en cours",
+      detail: "ARIA recherche la copie locale du PDF."
+    };
+  }
+
+  if (
+    getValidatedLocalPdfFile()
+  ) {
+    return {
+      code: "available",
+      label: "PDF local disponible",
+      detail: "La copie peut être téléchargée."
+    };
+  }
+
+  return {
+    code: "reassociate",
+    label: "PDF à réassocier",
+    detail:
+      ariaState.localPdfRestoreError ||
+      "Sélectionne de nouveau le PDF source."
+  };
+}
+
+function hasUnresolvedFilenameTokens(
+  filename
+) {
+  return /\[[^\]]+\]/.test(
+    String(filename || "")
+  );
+}
+
+function getDocumentWorkflowState() {
+  const analysis =
+    ariaState.documentAnalysis;
+  const filename =
+    analysis?.suggested_filename ||
+    "";
+  const pdfLocal =
+    getValidatedLocalPdfFile();
+  const downloadLink =
+    domReady
+      ? document.getElementById(
+          "download-renamed-pdf-link"
+        )
+      : null;
+
+  return {
+    analysis: {
+      done:
+        Boolean(analysis),
+      detail:
+        analysis
+          ? "Analyse disponible"
+          : "Analyse à lancer"
+    },
+    metadata: {
+      done:
+        Boolean(
+          analysis?.filename_complete
+        ),
+      detail:
+        analysis?.filename_complete
+          ? "Tous les champs requis sont présents"
+          : `${Array.isArray(
+              analysis?.missing_fields
+            )
+              ? analysis.missing_fields.length
+              : 0} champ(s) à compléter`
+    },
+    memory: {
+      done:
+        Boolean(
+          analysis?.presentation
+            ?.manuallyValidated
+        ),
+      detail:
+        analysis?.presentation
+          ?.manuallyValidated
+          ? (
+              ariaState.documentSaveSource ===
+                "local_fallback"
+                ? "Conservées localement"
+                : "Enregistrées et validées"
+            )
+          : "Validation humaine attendue"
+    },
+    name: {
+      done:
+        Boolean(
+          analysis?.filename_complete &&
+          filename &&
+          !hasUnresolvedFilenameTokens(
+            filename
+          )
+        ),
+      detail:
+        filename
+          ? (
+              hasUnresolvedFilenameTokens(
+                filename
+              )
+                ? "Le nom contient encore des champs entre crochets"
+                : "Nom final construit"
+            )
+          : "Nom incomplet"
+    },
+    download: {
+      done:
+        Boolean(
+          pdfLocal &&
+          downloadLink &&
+          !downloadLink.hidden &&
+          String(
+            downloadLink.href || ""
+          ).startsWith("blob:")
+        ),
+      detail:
+        pdfLocal
+          ? "Lien local prêt"
+          : "Source locale requise"
+    }
+  };
+}
+
+function buildDocumentDiagnostics() {
+  const analysis =
+    ariaState.documentAnalysis;
+  const metadata =
+    analysis?.metadata ||
+    ariaState.documentEditorMetadata ||
+    {};
+  const localStatus =
+    getPdfLocalStatus();
+  const workflow =
+    getDocumentWorkflowState();
+  const directLink =
+    domReady
+      ? document.getElementById(
+          "download-renamed-pdf-link"
+        )
+      : null;
+
+  return {
+    generatedAt:
+      new Date().toISOString(),
+    version:
+      String(
+        config.version || ""
+      ),
+    browser: {
+      secureContext:
+        window.isSecureContext,
+      indexedDb:
+        "indexedDB" in window,
+      clipboard:
+        Boolean(
+          navigator.clipboard
+        )
+    },
+    pdf: {
+      active:
+        Boolean(
+          ariaState.pendingPdf
+        ),
+      localStatus:
+        localStatus.code,
+      localStatusLabel:
+        localStatus.label,
+      localValidated:
+        Boolean(
+          ariaState
+            .pendingPdfLocalFileValidated
+        ),
+      originalName:
+        ariaState.pendingPdf
+          ?.originalName ||
+        ariaState.pendingPdf
+          ?.name ||
+        "",
+      finalName:
+        analysis
+          ?.suggested_filename ||
+        ""
+    },
+    document: {
+      analyzed:
+        Boolean(analysis),
+      filenameComplete:
+        Boolean(
+          analysis?.filename_complete
+        ),
+      type:
+        metadata.type_document ||
+        metadata.effective_type ||
+        "",
+      discipline:
+        metadata.discipline ||
+        "",
+      technique:
+        metadata.technique ||
+        "",
+      saveSource:
+        ariaState.documentSaveSource ||
+        "",
+      cardRevision:
+        ariaState
+          .documentCardCommitRevision,
+      cardCommittedAt:
+        ariaState
+          .documentCardCommittedAt ||
+        ""
+    },
+    download: {
+      ready:
+        workflow.download.done,
+      linkHidden:
+        directLink
+          ? directLink.hidden
+          : true,
+      linkProtocol:
+        directLink &&
+        String(
+          directLink.href || ""
+        ).startsWith("blob:")
+          ? "blob:"
+          : ""
+    },
+    workflow: {
+      analysis:
+        workflow.analysis.done,
+      metadata:
+        workflow.metadata.done,
+      memory:
+        workflow.memory.done,
+      name:
+        workflow.name.done,
+      download:
+        workflow.download.done
+    },
+    lastError: {
+      code:
+        ariaState.lastDiagnosticCode ||
+        "",
+      message:
+        ariaState.lastDiagnosticMessage ||
+        "",
+      detail:
+        ariaState.lastDiagnosticDetail ||
+        "",
+      at:
+        ariaState.lastDiagnosticAt ||
+        ""
+    }
+  };
+}
+
+function updateWorkflowItem(
+  key,
+  state
+) {
+  const item =
+    getElement(
+      `workflow-check-${key}`
+    );
+  const detail =
+    getElement(
+      `workflow-check-${key}-detail`
+    );
+  const icon =
+    item.querySelector(
+      ".workflow-check-icon"
+    );
+
+  item.classList.toggle(
+    "done",
+    state.done
+  );
+  item.classList.toggle(
+    "pending",
+    !state.done
+  );
+
+  icon.textContent =
+    state.done
+      ? "✓"
+      : "○";
+  detail.textContent =
+    state.detail;
+}
+
+function updateDocumentStabilizationInterface() {
+  if (!domReady) return;
+
+  const pdf =
+    ariaState.pendingPdf;
+  const analysis =
+    ariaState.documentAnalysis;
+  const localStatus =
+    getPdfLocalStatus();
+
+  const badge =
+    getElement(
+      "pdf-local-status-badge"
+    );
+  badge.textContent =
+    localStatus.label;
+  badge.className =
+    `pdf-local-status-badge ${localStatus.code}`;
+
+  getElement(
+    "pdf-original-filename"
+  ).textContent =
+    pdf?.originalName ||
+    pdf?.name ||
+    "—";
+
+  getElement(
+    "pdf-final-filename"
+  ).textContent =
+    analysis?.suggested_filename ||
+    pdf?.presentationName ||
+    "—";
+
+  const workflow =
+    getDocumentWorkflowState();
+
+  for (
+    const key
+    of [
+      "analysis",
+      "metadata",
+      "memory",
+      "name",
+      "download"
+    ]
+  ) {
+    updateWorkflowItem(
+      key,
+      workflow[key]
+    );
+  }
+
+  const completed =
+    Object.values(workflow)
+      .filter(
+        (item) => item.done
+      )
+      .length;
+
+  getElement(
+    "document-workflow-score"
+  ).textContent =
+    `${completed} / 5`;
+
+  getElement(
+    "document-workflow-checklist"
+  ).classList.toggle(
+    "complete",
+    completed === 5
+  );
+
+  getElement(
+    "document-diagnostics-output"
+  ).textContent =
+    JSON.stringify(
+      buildDocumentDiagnostics(),
+      null,
+      2
+    );
+
+  const retryButton =
+    getElement(
+      "retry-local-pdf-restore"
+    );
+  retryButton.disabled =
+    !pdf ||
+    Boolean(
+      getValidatedLocalPdfFile()
+    ) ||
+    ariaState.localPdfRestoreBusy;
+
+  const diagnosticRow =
+    getElement(
+      "status-diagnostic-row"
+    );
+  const diagnosticCode =
+    getElement(
+      "status-diagnostic-code"
+    );
+
+  diagnosticRow.hidden =
+    !ariaState.lastDiagnosticCode;
+  diagnosticCode.textContent =
+    ariaState.lastDiagnosticCode ||
+    "";
+}
+
+async function copyDocumentDiagnostics() {
+  try {
+    await writeClipboardText(
+      JSON.stringify(
+        buildDocumentDiagnostics(),
+        null,
+        2
+      )
+    );
+
+    setState(
+      "idle",
+      "Diagnostic copié.",
+      "Les informations techniques sont disponibles dans le presse-papiers."
+    );
+  } catch (error) {
+    setState(
+      "error",
+      "Copie du diagnostic impossible.",
+      getReadableError(error)
+    );
+  }
+}
+
+async function copyLastDiagnosticCode() {
+  if (!ariaState.lastDiagnosticCode) {
+    return;
+  }
+
+  try {
+    await writeClipboardText(
+      ariaState.lastDiagnosticCode
+    );
+  } catch (error) {
+    console.warn(
+      "Copie de la référence impossible.",
+      error
+    );
+  }
+}
+
+function createDiagnosticReference(
+  message
+) {
+  const timestamp =
+    new Date()
+      .toISOString()
+      .replace(
+        /[-:TZ.]/g,
+        ""
+      )
+      .slice(0, 14);
+  const context =
+    String(message || "ERREUR")
+      .normalize("NFD")
+      .replace(
+        /[\u0300-\u036f]/g,
+        ""
+      )
+      .replace(
+        /[^a-zA-Z0-9]+/g,
+        "-"
+      )
+      .replace(
+        /^-+|-+$/g,
+        ""
+      )
+      .slice(0, 24)
+      .toUpperCase() ||
+    "ERREUR";
+
+  return `ARIA-WEB-${context}-${timestamp}`;
 }
 
 async function writeClipboardText(
@@ -8089,6 +8657,7 @@ async function restorePendingPdfLocalFile() {
     refreshDirectPdfDownloadLink();
     updatePdfAttachmentInterface();
     updateDocumentAnalysisInterface();
+    updateDocumentStabilizationInterface();
 
     return true;
   } catch (error) {
@@ -8150,30 +8719,48 @@ async function deleteCachedLocalPdf(
 }
 
 function savePendingPdfSession() {
-  try {
-    if (ariaState.pendingPdf) {
-      sessionStorage.setItem(
-        config.pdfSessionKey,
-        JSON.stringify(ariaState.pendingPdf)
-      );
-    } else {
-      sessionStorage.removeItem(
+  for (
+    const [storage, key]
+    of [
+      [
+        sessionStorage,
         config.pdfSessionKey
+      ],
+      [
+        localStorage,
+        config.pdfPersistentKey
+      ]
+    ]
+  ) {
+    try {
+      if (ariaState.pendingPdf) {
+        storage.setItem(
+          key,
+          JSON.stringify(
+            ariaState.pendingPdf
+          )
+        );
+      } else {
+        storage.removeItem(key);
+      }
+    } catch (error) {
+      console.warn(
+        "Impossible de mémoriser la session PDF.",
+        error
       );
     }
-  } catch (error) {
-    console.warn(
-      "Impossible de mémoriser la session PDF.",
-      error
-    );
   }
 }
 
 function loadPendingPdfSession() {
   try {
-    const raw = sessionStorage.getItem(
-      config.pdfSessionKey
-    );
+    const raw =
+      sessionStorage.getItem(
+        config.pdfSessionKey
+      ) ||
+      localStorage.getItem(
+        config.pdfPersistentKey
+      );
 
     if (!raw) return;
 
@@ -8185,11 +8772,15 @@ function loadPendingPdfSession() {
         "aria-temp/pdfs/"
       ) &&
       typeof parsed?.name === "string" &&
-      Number.isFinite(Number(parsed?.size))
+      Number.isFinite(
+        Number(parsed?.size)
+      )
     ) {
       ariaState.pendingPdf = {
-        pathname: parsed.pathname,
-        name: parsed.name,
+        pathname:
+          parsed.pathname,
+        name:
+          parsed.name,
         originalName:
           parsed.originalName ||
           parsed.name,
@@ -8199,13 +8790,16 @@ function loadPendingPdfSession() {
         presentationStatus:
           parsed.presentationStatus ||
           "",
-        size: Number(parsed.size),
-        mimeType: "application/pdf",
-        detail: ["low", "auto", "high"].includes(
-          parsed.detail
-        )
-          ? parsed.detail
-          : "auto",
+        size:
+          Number(parsed.size),
+        mimeType:
+          "application/pdf",
+        detail:
+          ["low", "auto", "high"].includes(
+            parsed.detail
+          )
+            ? parsed.detail
+            : "auto",
         uploadedAt:
           parsed.uploadedAt || null
       };
@@ -8217,15 +8811,28 @@ function loadPendingPdfSession() {
     }
   } catch (error) {
     console.warn(
-      "Session PDF invalide.",
+      "Session PDF mémorisée invalide.",
       error
     );
-    try {
-      sessionStorage.removeItem(
-        config.pdfSessionKey
-      );
-    } catch {
-      // Aucun traitement supplémentaire.
+
+    for (
+      const [storage, key]
+      of [
+        [
+          sessionStorage,
+          config.pdfSessionKey
+        ],
+        [
+          localStorage,
+          config.pdfPersistentKey
+        ]
+      ]
+    ) {
+      try {
+        storage.removeItem(key);
+      } catch {
+        // Aucun traitement supplémentaire.
+      }
     }
   }
 }
@@ -8587,6 +9194,111 @@ async function discardPendingPdf(
   }
 }
 
+function startNewDocument() {
+  if (
+    ariaState.newDocumentBusy ||
+    ariaState.pdfBusy ||
+    ariaState.documentAnalysisBusy ||
+    ariaState.documentEditorBusy
+  ) {
+    return;
+  }
+
+  const previousPdf =
+    ariaState.pendingPdf
+      ? {
+          ...ariaState.pendingPdf
+        }
+      : null;
+
+  if (
+    previousPdf &&
+    !window.confirm(
+      "Commencer un nouveau document ?\n\nLa fiche active et ses métadonnées seront retirées d’ARIA. Le PDF original enregistré sur ton ordinateur restera intact."
+    )
+  ) {
+    return;
+  }
+
+  ariaState.newDocumentBusy =
+    true;
+
+  clearPendingPdfLocal();
+
+  setState(
+    "idle",
+    "Nouveau document.",
+    "Sélectionne le prochain PDF à analyser."
+  );
+
+  // Le sélecteur reste dans le geste utilisateur : aucun await avant le clic.
+  getElement(
+    "pdf-file-input"
+  ).click();
+
+  if (previousPdf?.pathname) {
+    deleteCachedLocalPdf(
+      previousPdf.pathname
+    ).catch(() => {});
+
+    if (ariaState.accessToken) {
+      requestPdfService({
+        action: "delete",
+        pathname:
+          previousPdf.pathname
+      }).catch((error) => {
+        console.warn(
+          "Nettoyage différé de l’ancien PDF impossible.",
+          error
+        );
+      });
+    }
+  }
+
+  window.setTimeout(
+    () => {
+      ariaState.newDocumentBusy =
+        false;
+      updateDocumentStabilizationInterface();
+    },
+    250
+  );
+}
+
+async function retryLocalPdfRestore() {
+  if (!ariaState.pendingPdf) {
+    setState(
+      "idle",
+      "Aucun PDF à restaurer.",
+      "Ajoute d’abord un document."
+    );
+    return;
+  }
+
+  ariaState.localPdfRestoreError =
+    "";
+
+  const restored =
+    await restorePendingPdfLocalFile();
+
+  if (restored) {
+    setState(
+      "idle",
+      "PDF local restauré.",
+      "Le téléchargement est de nouveau disponible."
+    );
+  } else {
+    setState(
+      "error",
+      "Restauration locale impossible.",
+      ariaState.localPdfRestoreError ||
+      "Clique sur « Associer le PDF source » et sélectionne le PDF original."
+    );
+  }
+
+  updateDocumentStabilizationInterface();
+}
+
 function updatePdfAttachmentInterface() {
   if (!domReady) return;
 
@@ -8674,6 +9386,7 @@ function updatePdfAttachmentInterface() {
         : "Stockage privé temporaire";
 
     updateDocumentAnalysisInterface();
+    updateDocumentStabilizationInterface();
     return;
   }
 
@@ -8712,6 +9425,7 @@ function updatePdfAttachmentInterface() {
     );
 
   updateDocumentAnalysisInterface();
+  updateDocumentStabilizationInterface();
 }
 
 function approximateDataUrlBytes(dataUrl) {
@@ -9302,6 +10016,20 @@ function setState(mode, message, detail) {
   ariaState.mode = mode;
   ariaState.message = message;
   ariaState.detail = detail;
+
+  if (mode === "error") {
+    ariaState.lastDiagnosticCode =
+      createDiagnosticReference(
+        message
+      );
+    ariaState.lastDiagnosticMessage =
+      String(message || "");
+    ariaState.lastDiagnosticDetail =
+      String(detail || "");
+    ariaState.lastDiagnosticAt =
+      new Date().toISOString();
+  }
+
   updateInterface();
 }
 
@@ -9311,7 +10039,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.4.0").replace(/^v/, "")}`;
+    `v${String(config.version || "1.4.1").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf
