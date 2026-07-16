@@ -1,25 +1,15 @@
-# ARIA Web v1.5.3 — Démarrage vierge
+# ARIA Web v1.6.0 — Room Intelligence
 
-Cette version isole ARIA du profil Edge normal.
+Cette version ajoute le premier socle du module ATLAS Tome 3 :
 
-## Au lancement
+- reconnaissance d'un folio de soumission ;
+- détection du bureau d'études et de son profil ;
+- reconstruction des locaux à partir de plusieurs folios ;
+- équipements groupés et sourcés ;
+- propositions d'influences externes par zone ;
+- questions indispensables uniquement ;
+- entretien vocal question/réponse ;
+- export JSON de contrôle.
 
-ARIA ne lit pas :
-
-- `localStorage` ;
-- `sessionStorage` ;
-- IndexedDB ;
-- les anciens PDF locaux ;
-- l’ancien historique ;
-- les anciennes analyses ;
-- les anciennes préférences vocales.
-
-ARIA n’ouvre pas non plus l’ancienne base IndexedDB.
-
-## Conséquence volontaire
-
-Après chaque fermeture complète du navigateur, la session locale repart vide.
-Le code d’accès doit être ressaisi et le PDF doit être ajouté à nouveau.
-
-Les données privées déjà présentes dans ARIA Core et BRAIN ne sont pas
-supprimées.
+Le module Electrical Analyst est conservé mais désactivé dans `config.js`.
+L'export Excel final sera produit à partir du modèle HELORA validé.

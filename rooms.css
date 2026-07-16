@@ -1,0 +1,259 @@
+.room-intelligence-card {
+  margin-top: 22px;
+  padding: clamp(18px, 3vw, 28px);
+  border: 1px solid rgba(0, 158, 153, 0.24);
+  border-radius: 24px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(239, 251, 250, 0.95));
+  box-shadow: 0 18px 48px rgba(4, 69, 80, 0.09);
+}
+
+.room-intelligence-heading,
+.room-section-heading,
+.room-bureau-panel,
+.room-export-panel,
+.room-card-heading,
+.room-answer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.room-intelligence-heading h2,
+.room-section-heading h3,
+.room-card-heading h4 {
+  margin: 3px 0 0;
+  color: #044550;
+}
+
+.room-intelligence-heading p,
+.room-card p,
+.room-question-card p {
+  margin: 7px 0 0;
+  color: #5a7075;
+}
+
+.room-analysis-badge,
+.room-question-scope,
+.room-bureau-panel > span {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: rgba(0, 158, 153, 0.11);
+  color: #047d7a;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.room-analysis-empty,
+.room-analysis-progress,
+.room-analysis-error,
+.room-summary-panel,
+.room-bureau-panel,
+.room-interview-panel,
+.room-export-panel {
+  margin-top: 18px;
+  padding: 17px;
+  border: 1px solid rgba(4, 69, 80, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.room-analysis-empty {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 16px;
+}
+
+.room-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: #044550;
+  color: white;
+  font-size: 1.4rem;
+}
+
+.room-analysis-error {
+  border-color: rgba(177, 52, 52, 0.25);
+  background: rgba(255, 240, 240, 0.92);
+  color: #8d2525;
+}
+
+.room-summary-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr);
+  gap: 18px;
+}
+
+.room-label {
+  display: block;
+  color: #668086;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.room-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.room-kpi-grid > div {
+  padding: 14px 10px;
+  border-radius: 15px;
+  background: #f2f9f8;
+  text-align: center;
+}
+
+.room-kpi-grid span {
+  display: block;
+  color: #60777b;
+  font-size: 0.76rem;
+}
+
+.room-kpi-grid strong {
+  color: #044550;
+  font-size: 1.5rem;
+}
+
+.room-section {
+  margin-top: 22px;
+}
+
+.room-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 14px;
+  margin-top: 13px;
+}
+
+.room-card {
+  padding: 16px;
+  border: 1px solid rgba(4, 69, 80, 0.1);
+  border-radius: 18px;
+  background: white;
+}
+
+.room-card-heading span {
+  color: #009e99;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.room-card-heading > strong {
+  color: #047d7a;
+  font-size: 0.85rem;
+}
+
+.room-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.room-card-grid div {
+  padding: 9px 10px;
+  border-radius: 12px;
+  background: #f5f8f8;
+}
+
+.room-card-grid dt {
+  color: #71858a;
+  font-size: 0.7rem;
+}
+
+.room-card-grid dd {
+  margin: 3px 0 0;
+  color: #24484f;
+  font-weight: 700;
+}
+
+.room-chip-list,
+.room-question-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.room-chip-list span,
+.room-option-button {
+  padding: 6px 9px;
+  border: 1px solid rgba(0, 158, 153, 0.18);
+  border-radius: 999px;
+  background: rgba(0, 158, 153, 0.07);
+  color: #24676c;
+  font-size: 0.76rem;
+}
+
+.room-option-button {
+  cursor: pointer;
+}
+
+.room-question-card {
+  margin-top: 14px;
+  padding: 17px;
+  border-radius: 16px;
+  background: #f5faf9;
+}
+
+.room-question-card > strong {
+  display: block;
+  margin-top: 12px;
+  color: #044550;
+  font-size: 1.05rem;
+}
+
+.room-answer-row {
+  margin-top: 16px;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.room-answer-row input {
+  flex: 1 1 280px;
+  min-width: 0;
+  padding: 11px 13px;
+  border: 1px solid rgba(4, 69, 80, 0.22);
+  border-radius: 12px;
+  background: white;
+}
+
+.room-export-panel small,
+.room-bureau-panel small {
+  display: block;
+  margin-top: 4px;
+  color: #72868a;
+}
+
+@media (max-width: 760px) {
+  .room-intelligence-heading,
+  .room-section-heading,
+  .room-bureau-panel,
+  .room-export-panel {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .room-analysis-empty,
+  .room-summary-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .room-analysis-empty button {
+    width: 100%;
+  }
+
+  .room-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

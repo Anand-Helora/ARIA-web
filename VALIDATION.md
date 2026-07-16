@@ -1,15 +1,12 @@
-# Validation ARIA Web v1.5.3
+# Validation ARIA Web v1.6.0
 
-- [x] aucune lecture localStorage au lancement
-- [x] aucune lecture sessionStorage au lancement
-- [x] aucune ouverture IndexedDB au lancement
-- [x] aucune restauration PDF
-- [x] aucun historique local restauré
-- [x] aucune analyse locale restaurée
-- [x] aucun chargement automatique de BRAIN Knowledge
-- [x] animation principale arrêtée après le premier rendu
-- [x] nouvelles clés `aria.web.clean.v1.5.3.*`
-- [x] nouvelle base IndexedDB isolée
-- [x] Electrical Analyst chargé uniquement au clic
+- [x] démarrage vierge conservé
+- [x] Room Intelligence chargé uniquement au clic
+- [x] Electrical Analyst désactivé sans suppression
+- [x] carte masquée sans PDF classé
+- [x] entretien vocal en capture unique
+- [x] réponse écrite et options rapides
+- [x] validation par exception
+- [x] téléchargement des données JSON de contrôle
 - [x] aucun secret dans ARIA Web
-- [x] ARIA Core inchangé
+- [x] interface mobile-first et palette HELORA

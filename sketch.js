@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.5.3",
+  version: "1.6.0",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -9,6 +9,7 @@ const config = window.ARIA_CONFIG || {
   pdfApiUrl: "https://aria-core-kappa.vercel.app/api/pdf",
   documentApiUrl: "https://aria-core-kappa.vercel.app/api/document",
   electricalApiUrl: "https://aria-core-kappa.vercel.app/api/electrical",
+  roomsApiUrl: "https://aria-core-kappa.vercel.app/api/rooms",
   knowledgeApiUrl: "https://aria-core-kappa.vercel.app/api/knowledge",
   requestTimeoutMs: 180000,
   speechRequestTimeoutMs: 45000,
@@ -17,6 +18,8 @@ const config = window.ARIA_CONFIG || {
   pdfUploadTimeoutMs: 300000,
   documentRequestTimeoutMs: 180000,
   electricalRequestTimeoutMs: 270000,
+  roomsRequestTimeoutMs: 210000,
+  features: { electricalAnalyst: false, roomIntelligence: true },
   knowledgeRequestTimeoutMs: 120000,
   knowledgeUploadTimeoutMs: 300000,
   maxHistoryMessages: 20,
@@ -126,7 +129,15 @@ const ariaState = {
   electricalModuleLoading: false,
   electricalModuleInitialized: false,
   electricalModuleError: "",
-  electricalBootstrapBusy: false
+  electricalBootstrapBusy: false,
+  roomModuleLoaded: false,
+  roomModuleLoading: false,
+  roomModuleInitialized: false,
+  roomModuleError: "",
+  roomBootstrapBusy: false,
+  roomAnalysis: null,
+  roomAnalysisBusy: false,
+  roomVoiceCaptureHandler: null
 };
 
 const stateVisuals = {
@@ -290,6 +301,10 @@ function initializeInterface() {
   getElement("run-electrical-analysis-button").addEventListener(
     "click",
     handleElectricalBootstrapRun
+  );
+  getElement("run-room-analysis-button").addEventListener(
+    "click",
+    handleRoomBootstrapRun
   );
   getElement("copy-document-filename-button").addEventListener(
     "click",
@@ -586,6 +601,152 @@ function updateElectricalBootstrapInterface() {
   } else {
     runButton.textContent =
       "Lancer la préanalyse électrique";
+  }
+}
+
+
+function updateRoomBootstrapInterface() {
+  const card = document.getElementById("room-intelligence-card");
+  const empty = document.getElementById("room-analysis-empty");
+  const runButton = document.getElementById("run-room-analysis-button");
+
+  if (!card || !empty || !runButton) return;
+
+  const featureEnabled =
+    config.features?.roomIntelligence !== false;
+
+  card.hidden =
+    !featureEnabled ||
+    !ariaState.pendingPdf ||
+    !ariaState.documentAnalysis;
+
+  if (card.hidden) return;
+
+  if (
+    ariaState.roomModuleLoaded &&
+    typeof updateRoomIntelligenceInterface === "function"
+  ) {
+    updateRoomIntelligenceInterface();
+    return;
+  }
+
+  empty.hidden = false;
+  runButton.disabled =
+    ariaState.roomModuleLoading ||
+    ariaState.roomBootstrapBusy ||
+    ariaState.documentAnalysisBusy;
+
+  if (ariaState.roomModuleLoading) {
+    runButton.textContent = "Chargement du module Fiches local…";
+  } else if (ariaState.roomModuleError) {
+    runButton.textContent = "Réessayer le chargement";
+  } else {
+    runButton.textContent = "Analyser les locaux";
+  }
+}
+
+function loadRoomModule() {
+  if (
+    ariaState.roomModuleLoaded &&
+    typeof runRoomAnalysis === "function"
+  ) {
+    return Promise.resolve();
+  }
+
+  if (window.__ariaRoomModulePromise) {
+    return window.__ariaRoomModulePromise;
+  }
+
+  ariaState.roomModuleLoading = true;
+  ariaState.roomModuleError = "";
+  updateRoomBootstrapInterface();
+
+  window.__ariaRoomModulePromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = `rooms.js?v=${encodeURIComponent(
+      config.version || "1.6.0"
+    )}`;
+    script.async = true;
+    script.dataset.ariaRoomModule = "true";
+
+    script.addEventListener("load", () => {
+      try {
+        if (
+          typeof initializeRoomIntelligence !== "function" ||
+          typeof runRoomAnalysis !== "function"
+        ) {
+          throw new Error(
+            "Le module Fiches local ne fournit pas les fonctions attendues."
+          );
+        }
+
+        if (!ariaState.roomModuleInitialized) {
+          initializeRoomIntelligence();
+          ariaState.roomModuleInitialized = true;
+        }
+
+        ariaState.roomModuleLoaded = true;
+        ariaState.roomModuleLoading = false;
+        ariaState.roomModuleError = "";
+        updateRoomBootstrapInterface();
+        resolve();
+      } catch (error) {
+        ariaState.roomModuleLoading = false;
+        ariaState.roomModuleError = getReadableError(error);
+        window.__ariaRoomModulePromise = null;
+        updateRoomBootstrapInterface();
+        reject(error);
+      }
+    }, { once: true });
+
+    script.addEventListener("error", () => {
+      const error = new Error(
+        "Le fichier rooms.js n’a pas pu être chargé."
+      );
+      ariaState.roomModuleLoading = false;
+      ariaState.roomModuleError = error.message;
+      window.__ariaRoomModulePromise = null;
+      updateRoomBootstrapInterface();
+      reject(error);
+    }, { once: true });
+
+    document.body.append(script);
+  });
+
+  return window.__ariaRoomModulePromise;
+}
+
+async function handleRoomBootstrapRun(event) {
+  event?.preventDefault();
+  event?.stopImmediatePropagation();
+
+  if (ariaState.roomBootstrapBusy) return;
+
+  if (!ariaState.pendingPdf || !ariaState.documentAnalysis) {
+    setState(
+      "error",
+      "Classement initial requis.",
+      "Analyse et classe d’abord le PDF."
+    );
+    return;
+  }
+
+  ariaState.roomBootstrapBusy = true;
+  updateRoomBootstrapInterface();
+
+  try {
+    await loadRoomModule();
+    await runRoomAnalysis();
+  } catch (error) {
+    console.error("Room module loading failed:", error);
+    setState(
+      "error",
+      "Le module Fiches local n’a pas pu démarrer.",
+      getReadableError(error)
+    );
+  } finally {
+    ariaState.roomBootstrapBusy = false;
+    updateRoomBootstrapInterface();
   }
 }
 
@@ -4019,7 +4180,7 @@ function initializeVoiceRecognition() {
     updateVoiceButton();
     updateVoiceInterface();
 
-    if (ariaState.recognitionMode === "voiceTurn") {
+    if (["voiceTurn", "roomInterview"].includes(ariaState.recognitionMode)) {
       setState("listening", "Je t’écoute…", "Parle naturellement. Appuie à nouveau pour envoyer immédiatement.");
       setVoiceStatus("Je t’écoute…", "Parle naturellement, puis marque une courte pause.");
     } else {
@@ -4058,6 +4219,31 @@ function initializeVoiceRecognition() {
     ariaState.recognitionMode = null;
     updateVoiceButton();
     updateVoiceInterface();
+
+    if (
+      completedMode === "roomInterview" &&
+      typeof ariaState.roomVoiceCaptureHandler === "function"
+    ) {
+      const handler = ariaState.roomVoiceCaptureHandler;
+      ariaState.roomVoiceCaptureHandler = null;
+
+      if (ariaState.recognitionFailed) {
+        return;
+      }
+
+      if (transcript) {
+        getElement("command-input").value = "";
+        ariaState.voiceTranscript = "";
+        handler(transcript);
+      } else {
+        setState(
+          "idle",
+          "Je n’ai rien entendu.",
+          "Relance l’écoute ou réponds par écrit."
+        );
+      }
+      return;
+    }
 
     if (completedMode === "voiceTurn") {
       if (ariaState.recognitionFailed) {
@@ -4139,6 +4325,42 @@ function startVoiceTurn() {
     setVoiceStatus("Microphone indisponible", getReadableError(error));
   }
 }
+
+
+window.startAriaRoomVoiceCapture = function startAriaRoomVoiceCapture(
+  handler
+) {
+  if (
+    typeof handler !== "function" ||
+    !ariaState.recognition
+  ) {
+    return false;
+  }
+
+  cancelSpeech(false);
+  ariaState.roomVoiceCaptureHandler = handler;
+  ariaState.recognitionMode = "roomInterview";
+  ariaState.voiceTranscript = "";
+  ariaState.recognitionFailed = false;
+  getElement("command-input").value = "";
+  getElement("voice-live-transcript").textContent =
+    "Réponds à la question…";
+
+  try {
+    ariaState.recognition.start();
+    return true;
+  } catch (error) {
+    ariaState.roomVoiceCaptureHandler = null;
+    ariaState.recognitionMode = null;
+    console.error("Room interview voice start error:", error);
+    setState(
+      "error",
+      "Impossible de démarrer l’écoute.",
+      getReadableError(error)
+    );
+    return false;
+  }
+};
 
 function stopVoiceRecognition() {
   if (!ariaState.recognition || !ariaState.isListening) return;
@@ -10332,7 +10554,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.5.3").replace(/^v/, "")}`;
+    `v${String(config.version || "1.6.0").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf
@@ -10357,6 +10579,15 @@ function updateInterface() {
   updateImageAttachmentInterface();
   updatePdfAttachmentInterface();
   updateDocumentAnalysisInterface();
+  updateRoomBootstrapInterface();
+
+  const electricalCard =
+    document.getElementById("electrical-analysis-card");
+  if (electricalCard) {
+    electricalCard.hidden =
+      config.features?.electricalAnalyst === false ||
+      electricalCard.hidden;
+  }
 
   updateMemoryProposalCard();
   updateKnowledgeInterface();

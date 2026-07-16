@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v1.5.3</title>
-  <link rel="stylesheet" href="style.css?v=1.5.3" />
-  <link rel="stylesheet" href="electrical.css?v=1.5.3" />
+  <title>ARIA — v1.6.0</title>
+  <link rel="stylesheet" href="style.css?v=1.6.0" />
+  <link rel="stylesheet" href="electrical.css?v=1.6.0" />
+  <link rel="stylesheet" href="rooms.css?v=1.6.0" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
-  <script src="config.js?v=1.5.3"></script>
+  <script src="config.js?v=1.6.0"></script>
 </head>
 <body>
   <main id="app-shell">
@@ -26,7 +27,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v1.5.3</span>
+          <span id="version-label" class="version-badge">v1.6.0</span>
         </div>
       </div>
       <div class="header-status">
@@ -873,6 +874,189 @@
       </section>
 
 
+
+      <section
+        id="room-intelligence-card"
+        class="room-intelligence-card"
+        hidden
+      >
+        <div class="room-intelligence-heading">
+          <div>
+            <span class="eyebrow">ATLAS Tome 3 · Fiches local</span>
+            <h2>Reconstruction des locaux</h2>
+            <p>
+              ARIA regroupe tous les folios, détecte le bureau d’études,
+              propose les équipements et prépare les influences externes.
+            </p>
+          </div>
+          <span
+            id="room-analysis-badge"
+            class="room-analysis-badge"
+          >À analyser</span>
+        </div>
+
+        <div
+          id="room-analysis-empty"
+          class="room-analysis-empty"
+        >
+          <div class="room-empty-icon" aria-hidden="true">⌂</div>
+          <div>
+            <strong>Créer les fiches local</strong>
+            <p>
+              Analyse d’abord et classe le PDF. ARIA reconstruira ensuite
+              les locaux à partir de tous les folios.
+            </p>
+          </div>
+          <button
+            id="run-room-analysis-button"
+            class="primary"
+            type="button"
+          >
+            Analyser les locaux
+          </button>
+        </div>
+
+        <div
+          id="room-analysis-progress"
+          class="room-analysis-progress"
+          hidden
+        >
+          <div class="pdf-progress-heading">
+            <span id="room-progress-label">Préparation du dossier</span>
+            <strong id="room-progress-value">0 %</strong>
+          </div>
+          <div class="progress-track">
+            <div
+              id="room-progress-bar"
+              class="progress-value"
+              style="width: 0%"
+            ></div>
+          </div>
+        </div>
+
+        <div
+          id="room-analysis-error"
+          class="room-analysis-error"
+          hidden
+        >
+          <strong>Analyse interrompue</strong>
+          <span id="room-analysis-error-text"></span>
+        </div>
+
+        <div
+          id="room-analysis-content"
+          class="room-analysis-content"
+          hidden
+        >
+          <section class="room-summary-panel">
+            <div>
+              <span class="room-label">Dossier reconnu</span>
+              <strong id="room-dossier-type">—</strong>
+              <p id="room-dossier-summary"></p>
+            </div>
+            <div class="room-kpi-grid">
+              <div>
+                <span>Locaux</span>
+                <strong id="room-count-value">0</strong>
+              </div>
+              <div>
+                <span>Équipements</span>
+                <strong id="room-equipment-count-value">0</strong>
+              </div>
+              <div>
+                <span>Questions</span>
+                <strong id="room-question-count-value">0</strong>
+              </div>
+            </div>
+          </section>
+
+          <section class="room-bureau-panel">
+            <div>
+              <span class="room-label">Bureau d’études détecté</span>
+              <strong id="room-bureau-name">—</strong>
+              <small id="room-bureau-profile">Profil non déterminé</small>
+            </div>
+            <span id="room-bureau-confidence">0 %</span>
+          </section>
+
+          <section class="room-section">
+            <div class="room-section-heading">
+              <div>
+                <span class="room-label">Locaux reconstruits</span>
+                <h3>Fiches proposées</h3>
+              </div>
+            </div>
+            <div id="room-list" class="room-list"></div>
+          </section>
+
+          <section
+            id="room-interview-panel"
+            class="room-interview-panel"
+            hidden
+          >
+            <div class="room-section-heading">
+              <div>
+                <span class="room-label">Validation par exception</span>
+                <h3>Questions indispensables</h3>
+              </div>
+              <button
+                id="start-room-voice-interview"
+                class="secondary compact"
+                type="button"
+              >
+                Démarrer l’entretien vocal
+              </button>
+            </div>
+
+            <div class="room-question-card">
+              <span id="room-question-scope" class="room-question-scope"></span>
+              <strong id="room-question-text"></strong>
+              <p id="room-question-reason"></p>
+              <div id="room-question-options" class="room-question-options"></div>
+              <div class="room-answer-row">
+                <input
+                  id="room-answer-input"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="Réponse ou correction…"
+                />
+                <button
+                  id="save-room-answer"
+                  class="primary compact"
+                  type="button"
+                >
+                  Enregistrer
+                </button>
+                <button
+                  id="skip-room-question"
+                  class="ghost compact"
+                  type="button"
+                >
+                  Je ne sais pas
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section class="room-export-panel">
+            <div>
+              <span class="room-label">Export</span>
+              <strong id="room-export-status">Préparation des données</strong>
+              <small>
+                Le classeur Excel est produit par un modèle déterministe HELORA.
+              </small>
+            </div>
+            <button
+              id="download-room-json"
+              class="secondary compact"
+              type="button"
+            >
+              Télécharger les données de contrôle
+            </button>
+          </section>
+        </div>
+      </section>
+
       <section
         id="electrical-analysis-card"
         class="electrical-analysis-card"
@@ -1176,7 +1360,7 @@
         </div>
       </div>
       <p class="footer-technical">
-        ARIA Web v1.5.3 · démarrage vierge · stockage isolé
+        ARIA Web v1.6.0 · Fiches local · profils bureaux · entretien vocal
       </p>
       <p class="footer-safety">
         Validation humaine requise avant toute action métier.
@@ -1558,6 +1742,6 @@
   </dialog>
 
   <noscript>JavaScript doit être activé pour utiliser ARIA.</noscript>
-  <script src="sketch.js?v=1.5.3"></script>
+  <script src="sketch.js?v=1.6.0"></script>
 </body>
 </html>
