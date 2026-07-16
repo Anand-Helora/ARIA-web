@@ -2651,3 +2651,18 @@ code {
   font-weight: 700;
 }
 .document-card-commit-status[hidden] { display: none; }
+
+
+/* Corrections autoritaires et restauration PDF — v1.4.0 */
+.document-save-source-status {
+  margin-top: 6px;
+  color: rgba(205, 247, 244, 0.82);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+.document-save-source-status.warning {
+  color: #ffd99a;
+}
+.document-save-source-status[hidden] {
+  display: none;
+}

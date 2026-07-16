@@ -1,15 +1,24 @@
-# ARIA Web v1.3.9 — Lien direct et commit des cartes
+# ARIA Web v1.4.0 — corrections autoritaires et PDF restauré
 
-## Téléchargement
+## Diagnostic confirmé par la console
 
-Le contrôle principal est un véritable lien HTML `a download` relié à une URL
-locale `blob:`. Le clic utilisateur agit directement sur le fichier, sans
-fonction JavaScript de téléchargement, fenêtre native ou nouvel onglet.
+L’état réel montrait :
 
-Après une actualisation de page, `Associer le PDF source` recrée le lien local.
+```text
+filename_complete = false
+type_document = vide
+PDF local = absent
+lien = masqué
+bouton d’association = masqué
+```
 
-## Cartes
+## Corrections
 
-L'enregistrement utilise un commit centralisé qui actualise les données
-primaires, le titre, le résumé, le nom proposé, la carte PDF et le lien de
-téléchargement. Une confirmation visible indique l'heure et la révision.
+- une réponse ARIA Core vide ne peut plus effacer une valeur saisie ;
+- les valeurs soumises sont la source autoritaire ;
+- la carte est actualisée même si le nom reste incomplet ;
+- si ARIA Core échoue, les corrections restent enregistrées localement avec un avertissement visible ;
+- le bouton `Associer le PDF source` reste visible lorsque le fichier local manque ;
+- le PDF local est conservé dans IndexedDB après son ajout ou sa réassociation ;
+- lors d’un prochain rechargement, ARIA tente de restaurer automatiquement ce PDF local ;
+- le lien direct apparaît dès que le PDF local et toutes les métadonnées sont disponibles.
