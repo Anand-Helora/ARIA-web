@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.5.2",
+  version: "1.5.3",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -152,6 +152,17 @@ function setup() {
   noFill();
   strokeCap(ROUND);
   document.body.classList.add("p5-ready");
+
+  if (
+    config.cleanBootMode === true &&
+    config.reduceMotionOnStartup === true &&
+    typeof noLoop === "function"
+  ) {
+    window.requestAnimationFrame(() => {
+      redraw();
+      noLoop();
+    });
+  }
 }
 
 function draw() {
@@ -449,60 +460,57 @@ function initializeInterface() {
   getElement("cancel-access").addEventListener("click", closeAccessDialog);
   getElement("toggle-token").addEventListener("click", toggleTokenVisibility);
 
-  loadAccessToken();
-  loadConversationVisibility();
-  loadTextInputVisibility();
+  // DÉMARRAGE VIERGE v1.5.3
+  // Aucune lecture de localStorage, sessionStorage ou IndexedDB.
+  ariaState.accessToken = "";
+  ariaState.history = [];
+  ariaState.pendingPdf = null;
+  ariaState.pendingPdfLocalFile = null;
+  ariaState.pendingPdfLocalFileValidated = false;
+  ariaState.documentAnalysis = null;
+  ariaState.documentEditorMetadata = null;
+  ariaState.documentEditorSiteId = "";
+  ariaState.pendingMemory = null;
+  ariaState.savedMemories = [];
+  ariaState.electricalModuleLoaded = false;
+  ariaState.electricalModuleLoading = false;
+  ariaState.electricalModuleInitialized = false;
+  ariaState.electricalModuleError = "";
+  ariaState.electricalBootstrapBusy = false;
 
-  if (ariaState.accessToken) {
-    ariaState.isTextInputVisible = true;
+  ariaState.isConversationVisible = false;
+  ariaState.isTextInputVisible = true;
+  ariaState.autoSpeak = false;
+  ariaState.speechRate = 1;
+  ariaState.preferredVoiceName = "openai:coral";
+
+  const autoSpeakToggle =
+    document.getElementById("auto-speak-toggle");
+  const speechRateSelect =
+    document.getElementById("speech-rate-select");
+  const speechVoiceSelect =
+    document.getElementById("speech-voice-select");
+
+  if (autoSpeakToggle) {
+    autoSpeakToggle.checked = false;
+  }
+  if (speechRateSelect) {
+    speechRateSelect.value = "1";
+  }
+  if (speechVoiceSelect) {
+    speechVoiceSelect.value = "openai:coral";
   }
 
-  loadVoiceSettings();
-  loadPendingPdfSession();
-  loadDocumentAnalysisSession();
-
-  // Démarrage sécurisé :
-  // les métadonnées sont restaurées, mais jamais les octets du PDF.
-  // La reconstruction d’un File volumineux depuis IndexedDB pouvait
-  // bloquer durablement le processus du navigateur.
-  if (ariaState.pendingPdf) {
-    ariaState.pendingPdfLocalFile =
-      null;
-    ariaState.pendingPdfLocalFileValidated =
-      false;
-    ariaState.localPdfRestoreError =
-      "PDF source à réassocier pour le téléchargement.";
-  }
-  // Nettoyage différé des anciens octets persistants.
-  // La suppression IndexedDB ne reconstruit pas le Blob en mémoire.
-  if (
-    ariaState.pendingPdf?.pathname &&
-    config.cacheLocalPdfBytes !== true
-  ) {
-    window.setTimeout(
-      () => {
-        deleteCachedLocalPdf(
-          ariaState.pendingPdf.pathname
-        ).catch(() => {});
-      },
-      1500
-    );
-  }
-
-  loadHistory();
   initializeVoiceRecognition();
   initializeSpeechSynthesis();
   updateInterface();
   updateConnectionIndicator();
 
-  if (ariaState.accessToken) {
-    loadKnowledgeStatus().catch((error) => {
-      console.warn(
-        "Chargement initial de BRAIN Knowledge impossible.",
-        error
-      );
-    });
-  }
+  setState(
+    "idle",
+    "ARIA est prête en démarrage vierge.",
+    "Connecte ARIA Core. Les anciennes données du navigateur ne sont pas lues."
+  );
 
   getElement("command-input").focus();
 }
@@ -912,7 +920,7 @@ async function requestRemoteAria(image = null, pdf = null) {
           : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "1.5.2"
+          version: config.version || "1.5.3"
         }
       }),
       signal: controller.signal
@@ -5059,7 +5067,7 @@ async function requestDocumentClassification(
           client: {
             name: "ARIA-web",
             version:
-              config.version || "1.5.2"
+              config.version || "1.5.3"
           }
         }),
         signal: controller.signal
@@ -8732,7 +8740,7 @@ async function copySuggestedDocumentFilename() {
 }
 
 const LOCAL_PDF_DB_NAME =
-  "aria-local-pdf-cache";
+  "aria-local-pdf-cache-clean-v1-5-3";
 const LOCAL_PDF_DB_VERSION = 1;
 const LOCAL_PDF_STORE_NAME =
   "pdfs";
@@ -10324,7 +10332,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.5.2").replace(/^v/, "")}`;
+    `v${String(config.version || "1.5.3").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf

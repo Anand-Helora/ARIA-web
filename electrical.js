@@ -389,7 +389,7 @@ async function electricalApiRequest(payload) {
         ...payload,
         client: {
           name: "ARIA-web",
-          version: config.version || "1.5.2"
+          version: config.version || "1.5.3"
         }
       }),
       signal: controller.signal

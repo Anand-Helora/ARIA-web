@@ -1,16 +1,15 @@
-# Validation ARIA Web v1.5.2
+# Validation ARIA Web v1.5.3
 
-## Démarrage
-
-- [x] aucune restauration automatique de Blob PDF
-- [x] aucune construction automatique de `File`
-- [x] aucune création automatique d’URL `blob:`
-- [x] métadonnées persistantes conservées
-- [x] Electrical Analyst toujours chargé à la demande
-
-## PDF
-
-- [x] PDF disponible pendant la session courante
-- [x] réassociation manuelle après réouverture
-- [x] téléchargement local conservé
-- [x] ancien cache IndexedDB supprimé sans lecture du Blob
+- [x] aucune lecture localStorage au lancement
+- [x] aucune lecture sessionStorage au lancement
+- [x] aucune ouverture IndexedDB au lancement
+- [x] aucune restauration PDF
+- [x] aucun historique local restauré
+- [x] aucune analyse locale restaurée
+- [x] aucun chargement automatique de BRAIN Knowledge
+- [x] animation principale arrêtée après le premier rendu
+- [x] nouvelles clés `aria.web.clean.v1.5.3.*`
+- [x] nouvelle base IndexedDB isolée
+- [x] Electrical Analyst chargé uniquement au clic
+- [x] aucun secret dans ARIA Web
+- [x] ARIA Core inchangé

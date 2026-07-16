@@ -1,34 +1,25 @@
-# ARIA Web v1.5.2 — Démarrage sécurisé
+# ARIA Web v1.5.3 — Démarrage vierge
 
-## Cause corrigée
+Cette version isole ARIA du profil Edge normal.
 
-ARIA pouvait restaurer automatiquement un PDF complet depuis IndexedDB à
-chaque réouverture. La reconstruction d’un gros objet `File` et la création
-immédiate de son URL `blob:` pouvaient bloquer le processus Edge.
+## Au lancement
 
-## Nouveau démarrage
+ARIA ne lit pas :
 
-```text
-Réouverture d’ARIA
-→ restauration des métadonnées
-→ restauration du classement et des corrections
-→ aucun octet PDF chargé
-→ page immédiatement utilisable
-```
+- `localStorage` ;
+- `sessionStorage` ;
+- IndexedDB ;
+- les anciens PDF locaux ;
+- l’ancien historique ;
+- les anciennes analyses ;
+- les anciennes préférences vocales.
 
-Le PDF source est demandé uniquement lorsque le téléchargement en a besoin.
+ARIA n’ouvre pas non plus l’ancienne base IndexedDB.
 
-## Mémoire conservée
+## Conséquence volontaire
 
-- analyse documentaire ;
-- corrections humaines ;
-- nom proposé ;
-- préanalyse électrique ;
-- décisions enregistrées.
+Après chaque fermeture complète du navigateur, la session locale repart vide.
+Le code d’accès doit être ressaisi et le PDF doit être ajouté à nouveau.
 
-## Mémoire volontairement non persistée
-
-- octets du PDF local.
-
-Le PDF original reste disponible sur l’ordinateur et peut être réassocié par un
-sélecteur natif.
+Les données privées déjà présentes dans ARIA Core et BRAIN ne sont pas
+supprimées.
