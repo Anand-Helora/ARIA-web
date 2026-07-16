@@ -1,10 +1,16 @@
-# Validation ARIA Web v1.5.1
+# Validation ARIA Web v1.5.2
 
-- [x] aucun script électrique automatique dans `index.html`
-- [x] aucune initialisation électrique dans `initializeInterface`
-- [x] aucune actualisation électrique dans `updateInterface`
-- [x] chargeur dynamique unique
-- [x] initialisation idempotente
-- [x] un seul lancement par clic
-- [x] workflow stable de renommage conservé
+## Démarrage
+
+- [x] aucune restauration automatique de Blob PDF
+- [x] aucune construction automatique de `File`
+- [x] aucune création automatique d’URL `blob:`
+- [x] métadonnées persistantes conservées
+- [x] Electrical Analyst toujours chargé à la demande
+
+## PDF
+
+- [x] PDF disponible pendant la session courante
+- [x] réassociation manuelle après réouverture
 - [x] téléchargement local conservé
+- [x] ancien cache IndexedDB supprimé sans lecture du Blob

@@ -2924,3 +2924,12 @@ code {
     width: 100%;
   }
 }
+
+
+/* Démarrage sécurisé — v1.5.2 */
+
+.pdf-local-status-badge.reassociate::before {
+  content: "↻";
+  margin-right: 5px;
+  font-weight: 900;
+}

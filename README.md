@@ -1,16 +1,34 @@
-# ARIA Web v1.5.1 — Electrical Analyst chargé à la demande
+# ARIA Web v1.5.2 — Démarrage sécurisé
 
-## Correction
+## Cause corrigée
 
-ARIA démarre désormais sans charger ni exécuter `electrical.js`.
+ARIA pouvait restaurer automatiquement un PDF complet depuis IndexedDB à
+chaque réouverture. La reconstruction d’un gros objet `File` et la création
+immédiate de son URL `blob:` pouvaient bloquer le processus Edge.
+
+## Nouveau démarrage
 
 ```text
-Ouverture d’ARIA
-→ workflow documentaire stable
-→ aucun code électrique exécuté
+Réouverture d’ARIA
+→ restauration des métadonnées
+→ restauration du classement et des corrections
+→ aucun octet PDF chargé
+→ page immédiatement utilisable
 ```
 
-Electrical Analyst est chargé uniquement au premier clic sur
-`Lancer la préanalyse électrique`.
+Le PDF source est demandé uniquement lorsque le téléchargement en a besoin.
 
-ARIA Core v0.12.0 reste inchangé.
+## Mémoire conservée
+
+- analyse documentaire ;
+- corrections humaines ;
+- nom proposé ;
+- préanalyse électrique ;
+- décisions enregistrées.
+
+## Mémoire volontairement non persistée
+
+- octets du PDF local.
+
+Le PDF original reste disponible sur l’ordinateur et peut être réassocié par un
+sélecteur natif.

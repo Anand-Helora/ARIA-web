@@ -1,7 +1,7 @@
 "use strict";
 
 const config = window.ARIA_CONFIG || {
-  version: "1.5.1",
+  version: "1.5.2",
   mode: "remote",
   apiUrl: "https://aria-core-kappa.vercel.app/api/chat",
   speechApiUrl: "https://aria-core-kappa.vercel.app/api/speech",
@@ -461,13 +461,34 @@ function initializeInterface() {
   loadPendingPdfSession();
   loadDocumentAnalysisSession();
 
-  restorePendingPdfLocalFile()
-    .catch((error) => {
-      console.warn(
-        "Restauration initiale du PDF local impossible.",
-        error
-      );
-    });
+  // Démarrage sécurisé :
+  // les métadonnées sont restaurées, mais jamais les octets du PDF.
+  // La reconstruction d’un File volumineux depuis IndexedDB pouvait
+  // bloquer durablement le processus du navigateur.
+  if (ariaState.pendingPdf) {
+    ariaState.pendingPdfLocalFile =
+      null;
+    ariaState.pendingPdfLocalFileValidated =
+      false;
+    ariaState.localPdfRestoreError =
+      "PDF source à réassocier pour le téléchargement.";
+  }
+  // Nettoyage différé des anciens octets persistants.
+  // La suppression IndexedDB ne reconstruit pas le Blob en mémoire.
+  if (
+    ariaState.pendingPdf?.pathname &&
+    config.cacheLocalPdfBytes !== true
+  ) {
+    window.setTimeout(
+      () => {
+        deleteCachedLocalPdf(
+          ariaState.pendingPdf.pathname
+        ).catch(() => {});
+      },
+      1500
+    );
+  }
+
   loadHistory();
   initializeVoiceRecognition();
   initializeSpeechSynthesis();
@@ -891,7 +912,7 @@ async function requestRemoteAria(image = null, pdf = null) {
           : null,
         client: {
           name: "ARIA-web",
-          version: config.version || "1.5.1"
+          version: config.version || "1.5.2"
         }
       }),
       signal: controller.signal
@@ -5038,7 +5059,7 @@ async function requestDocumentClassification(
           client: {
             name: "ARIA-web",
             version:
-              config.version || "1.5.1"
+              config.version || "1.5.2"
           }
         }),
         signal: controller.signal
@@ -8169,8 +8190,8 @@ function getPdfLocalStatus() {
   if (ariaState.localPdfRestoreBusy) {
     return {
       code: "restoring",
-      label: "Restauration en cours",
-      detail: "ARIA recherche la copie locale du PDF."
+      label: "Association en cours",
+      detail: "ARIA vérifie le PDF sélectionné."
     };
   }
 
@@ -8327,7 +8348,13 @@ function buildDocumentDiagnostics() {
       clipboard:
         Boolean(
           navigator.clipboard
-        )
+        ),
+      safeStartup:
+        config.restoreLocalPdfOnStartup !==
+          true,
+      persistentPdfBytes:
+        config.cacheLocalPdfBytes ===
+          true
     },
     pdf: {
       active:
@@ -9359,13 +9386,25 @@ async function handlePdfFileSelection(event) {
     };
 
     savePendingPdfSession();
-    await cachePendingPdfLocalFile()
-      .catch((error) => {
-        console.warn(
-          "Mise en cache locale du PDF impossible.",
-          error
-        );
-      });
+    // Les octets du PDF restent dans la session courante uniquement.
+    // Les métadonnées et les décisions restent, elles, persistantes.
+    if (
+      config.cacheLocalPdfBytes ===
+        true
+    ) {
+      await cachePendingPdfLocalFile()
+        .catch((error) => {
+          console.warn(
+            "Mise en cache locale du PDF impossible.",
+            error
+          );
+        });
+    } else {
+      deleteCachedLocalPdf(
+        ariaState.pendingPdf.pathname
+      ).catch(() => {});
+    }
+
     refreshDirectPdfDownloadLink();
 
     setState(
@@ -9528,11 +9567,11 @@ function startNewDocument() {
   );
 }
 
-async function retryLocalPdfRestore() {
+function retryLocalPdfRestore() {
   if (!ariaState.pendingPdf) {
     setState(
       "idle",
-      "Aucun PDF à restaurer.",
+      "Aucun PDF à associer.",
       "Ajoute d’abord un document."
     );
     return;
@@ -9541,25 +9580,8 @@ async function retryLocalPdfRestore() {
   ariaState.localPdfRestoreError =
     "";
 
-  const restored =
-    await restorePendingPdfLocalFile();
-
-  if (restored) {
-    setState(
-      "idle",
-      "PDF local restauré.",
-      "Le téléchargement est de nouveau disponible."
-    );
-  } else {
-    setState(
-      "error",
-      "Restauration locale impossible.",
-      ariaState.localPdfRestoreError ||
-      "Clique sur « Associer le PDF source » et sélectionne le PDF original."
-    );
-  }
-
-  updateDocumentStabilizationInterface();
+  // Le clic sur le sélecteur reste directement lié au geste utilisateur.
+  requestLocalPdfSource();
 }
 
 function updatePdfAttachmentInterface() {
@@ -9681,7 +9703,7 @@ function updatePdfAttachmentInterface() {
       ariaState.pendingPdfLocalFile
         ? "PDF local prêt pour l’analyse et le téléchargement"
         : ariaState.localPdfRestoreBusy
-          ? "Restauration locale du PDF…"
+          ? "Vérification du PDF source…"
           : ariaState.documentAnalysis
             ? "PDF actif · associe le fichier source si nécessaire"
             : "PDF restauré · sélection locale requise pour télécharger"
@@ -10302,7 +10324,7 @@ function updateInterface() {
   getElement("status-label").textContent = ariaState.message;
   getElement("detail-label").textContent = ariaState.detail;
   getElement("version-label").textContent =
-    `v${String(config.version || "1.5.1").replace(/^v/, "")}`;
+    `v${String(config.version || "1.5.2").replace(/^v/, "")}`;
 
   const privacy = getElement("privacy-indicator");
   privacy.textContent = ariaState.pendingPdf
