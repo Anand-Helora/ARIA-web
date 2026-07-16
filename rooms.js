@@ -41,9 +41,9 @@ function initializeRoomIntelligence() {
       }
     }
   );
-  roomGet("download-room-json").addEventListener(
+  roomGet("download-room-excel").addEventListener(
     "click",
-    downloadRoomControlData
+    downloadRoomExcel
   );
 
   updateRoomIntelligenceInterface();
@@ -501,28 +501,112 @@ async function startRoomVoiceInterview() {
   }
 }
 
-function downloadRoomControlData() {
-  if (!ariaState.roomAnalysis) return;
+async function downloadRoomExcel() {
+  if (!ariaState.roomAnalysis) {
+    setState(
+      "error",
+      "Aucune fiche à exporter.",
+      "Lance d’abord l’analyse des locaux."
+    );
+    return;
+  }
 
-  const payload = {
-    analysis: ariaState.roomAnalysis,
-    answers: roomAnswers,
-    exported_at: new Date().toISOString(),
-    status: "CONTROL_DATA_NOT_OFFICIAL"
-  };
+  if (!ariaState.accessToken) {
+    openAccessDialog();
+    return;
+  }
 
-  const blob = new Blob(
-    [JSON.stringify(payload, null, 2)],
-    { type: "application/json;charset=utf-8" }
+  const button = roomGet("download-room-excel");
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Génération du classeur…";
+
+  const request = createRoomRequestController(
+    config.roomsRequestTimeoutMs || 210000
   );
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "ARIA_Fiches_Local_Donnees_Controle.json";
-  document.body.append(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+  try {
+    const response = await fetch(
+      config.roomsApiUrl,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${ariaState.accessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          action: "export_xlsx",
+          analysis: ariaState.roomAnalysis,
+          answers: roomAnswers,
+          sourceName:
+            ariaState.pendingPdf?.name ||
+            ariaState.roomAnalysis?.meta?.source_name ||
+            "Dossier_source.pdf"
+        }),
+        signal: request.controller.signal
+      }
+    );
+
+    if (!response.ok) {
+      const contentType =
+        response.headers.get("content-type") || "";
+      const errorPayload = contentType.includes("application/json")
+        ? await response.json().catch(() => ({}))
+        : {};
+      throw new Error(
+        errorPayload?.error ||
+        "Le classeur Excel n’a pas pu être généré."
+      );
+    }
+
+    const blob = await response.blob();
+    const disposition =
+      response.headers.get("content-disposition") || "";
+    const utf8Match = disposition.match(
+      /filename\*=UTF-8''([^;]+)/i
+    );
+    const plainMatch = disposition.match(
+      /filename="?([^";]+)"?/i
+    );
+    const filename = utf8Match
+      ? decodeURIComponent(utf8Match[1])
+      : plainMatch?.[1] ||
+        "ARIA_Fiches_Locales.xlsx";
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(
+      () => URL.revokeObjectURL(url),
+      1500
+    );
+
+    const exportStatus =
+      response.headers.get("x-aria-export-status") ||
+      "PROVISOIRE";
+
+    setState(
+      "idle",
+      "Classeur Excel généré.",
+      exportStatus === "PROVISOIRE"
+        ? "Le fichier est marqué PROVISOIRE tant que des points restent à valider."
+        : "Le fichier contient les fiches, le sommaire et les tables DATA."
+    );
+  } catch (error) {
+    setState(
+      "error",
+      "L’export Excel a échoué.",
+      getReadableError(error)
+    );
+  } finally {
+    request.clear();
+    button.disabled = false;
+    button.textContent = originalText;
+  }
 }
 
 function escapeRoomHtml(value) {

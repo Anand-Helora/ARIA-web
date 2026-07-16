@@ -1,10 +1,10 @@
-# Validation ARIA Web v1.6.2
+# Validation ARIA Web v1.6.3
 
-- [x] texte du pourcentage blanc
-- [x] libellé d'étape blanc
-- [x] message JSON technique remplacé
-- [x] cache-busting v1.6.2
-- [x] transmission de la taille PDF conservée
-- [x] bouton de relance conservé
-- [x] design sombre conservé
+- [x] bouton `Télécharger le fichier Excel`
+- [x] action Core `export_xlsx`
+- [x] téléchargement Blob `.xlsx`
+- [x] nom de fichier lu depuis Content-Disposition
+- [x] statut provisoire affiché
+- [x] réponses vocales/écrites envoyées à l’export
+- [x] design sombre et progression blanche conservés
 - [x] aucun secret côté Web

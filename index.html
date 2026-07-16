@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v1.6.2</title>
-  <link rel="stylesheet" href="style.css?v=1.6.2" />
-  <link rel="stylesheet" href="electrical.css?v=1.6.2" />
-  <link rel="stylesheet" href="rooms.css?v=1.6.2" />
+  <title>ARIA — v1.6.3</title>
+  <link rel="stylesheet" href="style.css?v=1.6.3" />
+  <link rel="stylesheet" href="electrical.css?v=1.6.3" />
+  <link rel="stylesheet" href="rooms.css?v=1.6.3" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
-  <script src="config.js?v=1.6.2"></script>
+  <script src="config.js?v=1.6.3"></script>
 </head>
 <body>
   <main id="app-shell">
@@ -27,7 +27,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v1.6.2</span>
+          <span id="version-label" class="version-badge">v1.6.3</span>
         </div>
       </div>
       <div class="header-status">
@@ -1048,15 +1048,15 @@
               <span class="room-label">Export</span>
               <strong id="room-export-status">Préparation des données</strong>
               <small>
-                Le classeur Excel est produit par un modèle déterministe HELORA.
+                Classeur HELORA contrôlé : sommaire, fiches imprimables et tables DATA.
               </small>
             </div>
             <button
-              id="download-room-json"
+              id="download-room-excel"
               class="secondary compact"
               type="button"
             >
-              Télécharger les données de contrôle
+              Télécharger le fichier Excel
             </button>
           </section>
         </div>
@@ -1365,7 +1365,7 @@
         </div>
       </div>
       <p class="footer-technical">
-        ARIA Web v1.6.2 · Fiches local · analyse robuste · progression lisible
+        ARIA Web v1.6.3 · Fiches local · export Excel HELORA
       </p>
       <p class="footer-safety">
         Validation humaine requise avant toute action métier.
@@ -1747,6 +1747,6 @@
   </dialog>
 
   <noscript>JavaScript doit être activé pour utiliser ARIA.</noscript>
-  <script src="sketch.js?v=1.6.2"></script>
+  <script src="sketch.js?v=1.6.3"></script>
 </body>
 </html>

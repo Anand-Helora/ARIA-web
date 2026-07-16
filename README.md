@@ -1,8 +1,7 @@
-# ARIA Web v1.6.2 — Room Intelligence
+# ARIA Web v1.6.3 — Export Excel HELORA
 
-- pourcentage et libellé de progression en blanc ;
-- contraste renforcé pendant l'analyse ;
-- message compréhensible en cas d'ancien Core produisant un JSON tronqué ;
-- interface sombre v1.6.1 conservée ;
-- correction PDF v1.6.1 conservée ;
-- module électrique toujours désactivé mais conservé.
+- le bouton d’export télécharge désormais un vrai fichier `.xlsx` ;
+- le JSON technique n’est plus le livrable principal ;
+- le classeur contient sommaire, fiche interactive, fiches imprimables,
+  équipements, points à valider et feuilles DATA ;
+- l’état PROVISOIRE est conservé lorsque des réponses manquent.
