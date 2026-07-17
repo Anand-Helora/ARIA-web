@@ -48,6 +48,18 @@ function initializeRoomIntelligence() {
     "click",
     downloadRoomExcel
   );
+  roomGet("refresh-room-brain-status").addEventListener(
+    "click",
+    () => {
+      void refreshRoomBrainStatus(true);
+    }
+  );
+  roomGet("save-room-bureau-profile").addEventListener(
+    "click",
+    () => {
+      void saveCurrentBureauProfile();
+    }
+  );
   roomGet("close-room-detail").addEventListener(
     "click",
     closeRoomDetail
@@ -185,12 +197,16 @@ async function runRoomAnalysis() {
     }
 
     ariaState.roomAnalysis = data.analysis;
+    if (data?.brainPersistence) {
+      ariaState.roomAnalysis.brain_persistence = data.brainPersistence;
+    }
     progress.finish();
     setState(
       "idle",
       "Listing Elements préparé.",
       `${data.analysis?.rooms?.length || 0} locaux ont été reconstruits.`
     );
+    await refreshRoomBrainStatus(false);
   } catch (error) {
     progress.stop();
     const rawMessage = getReadableError(error);
@@ -401,6 +417,7 @@ function renderRoomAnalysis() {
   roomGet("room-bureau-confidence").textContent =
     `${Math.round((Number(bureau.confidence) || 0) * 100)} %`;
 
+  renderRoomBrainPersistence(analysis);
   renderRoomList(rooms);
   renderRoomQuestion();
   roomGet("room-export-status").textContent =
@@ -937,6 +954,8 @@ function renderRoomQuestion() {
   roomGet("room-question-reason").textContent =
     question.reason || "";
 
+  renderRoomQuestionSources(question);
+
   const options = roomGet("room-question-options");
   options.replaceChildren();
 
@@ -954,7 +973,9 @@ function renderRoomQuestion() {
 
   const isElementCode =
     question.target_field === "element_code" &&
-    question.target_entity_type === "equipment";
+    ["equipment", "equipment_group"].includes(
+      question.target_entity_type
+    );
   const learningOptions = roomGet("room-question-learning-options");
   learningOptions.hidden = !isElementCode;
 
@@ -972,6 +993,198 @@ function renderRoomQuestion() {
   }
 
   roomGet("room-answer-input").value = "";
+}
+
+function normalizeQuestionSourceRows(question) {
+  const map = new Map();
+  for (const source of Array.isArray(question?.sources)
+    ? question.sources
+    : []) {
+    const row = {
+      page: Math.max(0, Math.trunc(Number(source?.page) || 0)),
+      folio: String(source?.folio || "").trim(),
+      discipline: String(source?.discipline || "").trim(),
+      evidence: String(source?.evidence || "").trim()
+    };
+    if (!row.page && !row.folio && !row.evidence) continue;
+    const key = `${row.page}|${row.folio}|${row.discipline}|${row.evidence}`;
+    if (!map.has(key)) map.set(key, row);
+  }
+  return [...map.values()].slice(0, 8);
+}
+
+function renderRoomQuestionSources(question) {
+  const container = roomGet("room-question-sources");
+  const sources = normalizeQuestionSourceRows(question);
+  container.replaceChildren();
+  container.hidden = sources.length === 0;
+
+  for (const source of sources) {
+    const item = document.createElement("article");
+    item.className = "room-question-source";
+    const heading = document.createElement("strong");
+    heading.textContent = [
+      source.folio,
+      source.page ? `page ${source.page}` : "",
+      source.discipline
+    ].filter(Boolean).join(" · ") || "Source du dossier";
+    const evidence = document.createElement("span");
+    evidence.textContent = source.evidence || "Preuve à contrôler sur la page indiquée.";
+    item.append(heading, evidence);
+    container.append(item);
+  }
+}
+
+function renderRoomBrainPersistence(analysis) {
+  const persistence = analysis?.brain_persistence || {};
+  const bureau = persistence?.bureau_profile || {};
+  const elementStorage =
+    persistence?.element_storage ||
+    analysis?.reference_status || {};
+  const coreVersion = analysis?.meta?.core_version || "—";
+
+  roomGet("room-core-version").textContent = `Core ${coreVersion}`;
+  roomGet("room-bureau-brain-status").textContent = bureau?.saved
+    ? `Profil sauvegardé dans BRAIN · ${bureau?.validation?.updatedAt || bureau?.validation?.createdAt || "maintenant"}`
+    : bureau?.message || "Profil détecté, sauvegarde BRAIN à vérifier.";
+  roomGet("room-bureau-brain-status").dataset.state = bureau?.saved
+    ? "success"
+    : "warning";
+
+  const configured = Boolean(
+    elementStorage?.configured ??
+    elementStorage?.learningStorageConfigured
+  );
+  roomGet("room-element-brain-status").textContent = configured
+    ? "Stockage des codifications connecté."
+    : "Stockage des codifications non confirmé.";
+  roomGet("room-element-brain-status").dataset.state = configured
+    ? "success"
+    : "warning";
+}
+
+async function refreshRoomBrainStatus(showMessage = false) {
+  if (!ariaState.accessToken) return null;
+  const button = roomGet("refresh-room-brain-status");
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = "Vérification…";
+  try {
+    const response = await fetch(config.roomsApiUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${ariaState.accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ action: "brain_learning_status" })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data?.ok) {
+      throw new Error(data?.error || "BRAIN n’a pas pu être vérifié.");
+    }
+
+    roomGet("room-brain-code-count-value").textContent =
+      String(Number(data?.learnedRecordCount) || 0);
+    roomGet("room-element-brain-status").textContent =
+      data?.elementDiagnostics?.readable
+        ? `${Number(data?.elementDiagnostics?.recordCount) || 0} codification(s) relue(s) dans BRAIN.`
+        : data?.elementDiagnostics?.message || "Stockage des codifications indisponible.";
+    roomGet("room-element-brain-status").dataset.state =
+      data?.elementDiagnostics?.readable ? "success" : "error";
+    roomGet("room-bureau-brain-status").textContent =
+      data?.bureauStorage?.configured
+        ? `${Number(data?.bureauValidationCount) || 0} validation(s) de profil enregistrée(s).`
+        : "Stockage des profils de bureaux non configuré.";
+    roomGet("room-bureau-brain-status").dataset.state =
+      data?.bureauStorage?.configured ? "success" : "error";
+    roomGet("room-core-version").textContent = `Core ${data?.version || "—"}`;
+
+    if (showMessage) {
+      setState(
+        "idle",
+        "BRAIN vérifié.",
+        `${Number(data?.learnedRecordCount) || 0} codification(s) et ${Number(data?.bureauValidationCount) || 0} validation(s) de profil disponibles.`
+      );
+    }
+    return data;
+  } catch (error) {
+    roomGet("room-element-brain-status").textContent = getReadableError(error);
+    roomGet("room-element-brain-status").dataset.state = "error";
+    if (showMessage) {
+      setState("error", "BRAIN indisponible.", getReadableError(error));
+    }
+    return null;
+  } finally {
+    button.disabled = false;
+    button.textContent = original;
+  }
+}
+
+async function saveCurrentBureauProfile() {
+  const bureau = ariaState.roomAnalysis?.bureau_profile || {};
+  if (!bureau?.profile_id || !bureau?.detected_name) {
+    setState(
+      "idle",
+      "Profil incomplet.",
+      "ARIA doit d’abord identifier un bureau et un profil exploitable."
+    );
+    return;
+  }
+
+  const button = roomGet("save-room-bureau-profile");
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = "Sauvegarde…";
+  try {
+    const response = await fetch(config.roomsApiUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${ariaState.accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        action: "save_profile_validation",
+        validation: {
+          profileId: bureau.profile_id,
+          canonicalType: "BUREAU_PROFILE",
+          detectedLabel: bureau.detected_name,
+          correctedLabel: bureau.profile_id,
+          scope: "bureau_profile",
+          accepted: true,
+          confidence: Number(bureau.confidence) || 0,
+          signals: bureau.signals || [],
+          sourceDocument:
+            ariaState.pendingPdf?.name ||
+            ariaState.roomAnalysis?.meta?.source_name ||
+            ""
+        }
+      })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data?.ok || !data?.validation?.saved) {
+      throw new Error(data?.error || "Le profil n’a pas été sauvegardé.");
+    }
+    ariaState.roomAnalysis.brain_persistence = {
+      ...(ariaState.roomAnalysis.brain_persistence || {}),
+      bureau_profile: data.validation
+    };
+    renderRoomBrainPersistence(ariaState.roomAnalysis);
+    await refreshRoomBrainStatus(false);
+    setState(
+      "idle",
+      "Profil sauvegardé dans BRAIN.",
+      `${bureau.detected_name} est associé au profil ${bureau.profile_id}.`
+    );
+  } catch (error) {
+    setState(
+      "error",
+      "Sauvegarde du profil impossible.",
+      getReadableError(error)
+    );
+  } finally {
+    button.disabled = false;
+    button.textContent = original;
+  }
 }
 
 function getRoomAnswerValue(forcedValue, question) {
@@ -1017,7 +1230,9 @@ async function saveCurrentRoomAnswer(forcedValue) {
 
   const isElementCode =
     question.target_field === "element_code" &&
-    question.target_entity_type === "equipment";
+    ["equipment", "equipment_group"].includes(
+      question.target_entity_type
+    );
   if (
     isElementCode &&
     value !== "Je ne sais pas" &&
@@ -1090,6 +1305,13 @@ async function saveCurrentRoomAnswer(forcedValue) {
     }
 
     ariaState.roomAnalysis = data.analysis;
+    ariaState.roomAnalysis.brain_persistence = {
+      ...(ariaState.roomAnalysis.brain_persistence || {}),
+      element_learning: Array.isArray(data?.learning)
+        ? data.learning
+        : [],
+      element_storage: data?.learningStorage || null
+    };
     roomCurrentQuestionIndex = 0;
     updateRoomIntelligenceInterface();
     const remaining = getRoomQuestionQueue().length;
@@ -1129,6 +1351,7 @@ async function saveCurrentRoomAnswer(forcedValue) {
         : "Toutes les questions actuellement détectées ont été traitées."
     );
 
+    await refreshRoomBrainStatus(false);
     setState(
       "idle",
       value === "Je ne sais pas"
@@ -1282,13 +1505,17 @@ async function downloadRoomExcel() {
     const exportStatus =
       response.headers.get("x-aria-export-status") ||
       "PROVISOIRE";
+    const coreVersion =
+      response.headers.get("x-aria-core-version") ||
+      ariaState.roomAnalysis?.meta?.core_version ||
+      "inconnue";
 
     setState(
       "idle",
       "Classeur Excel généré.",
       exportStatus === "PROVISOIRE"
-        ? "Le fichier est marqué PROVISOIRE tant que des points restent à valider."
-        : "Le fichier contient les fiches, le sommaire et les tables DATA."
+        ? `Export Core ${coreVersion}. Le fichier est marqué PROVISOIRE tant que des points restent à valider.`
+        : `Export Core ${coreVersion}. Le fichier contient les fiches A4 paysage, l’inventaire et les preuves par page.`
     );
   } catch (error) {
     setState(

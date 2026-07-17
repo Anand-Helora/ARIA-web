@@ -1,11 +1,11 @@
-# ARIA Web v1.10.0 — Listing Elements et contrôles renforcés
+# ARIA Web v1.11.0 — contrôle BRAIN et pages sources
 
-## Correctifs
+## Nouveautés
 
-- le bouton de validation n'envoie plus le `PointerEvent` comme réponse ;
-- les trigrammes sont normalisés en majuscules et validés avant l'appel au Core ;
-- les codes ATOMBIM avec tirets restent autorisés ;
-- une réponse invalide n'est plus conservée dans la session locale ;
-- le message renvoyé par BRAIN indique précisément si le stockage est absent ou en erreur ;
-- l'interface reste compatible avec les cartes locales agrandissables de la v1.8.0.
-Déclenche un nouveau déploiement GitHub Pages afin de remplacer l’exécution #48 restée bloquée dans la file d’attente.
+- affichage visible de la version du Core ;
+- bouton de vérification BRAIN avec compteurs relus ;
+- sauvegarde manuelle du profil de bureau ;
+- mémorisation des trigrammes pour les questions `equipment` et `equipment_group` ;
+- affichage des pages, folios et preuves qui provoquent une question ;
+- actualisation automatique du statut BRAIN après une analyse ou une réponse ;
+- synchronisation avec l’export Excel ARIA Core v0.18.0.

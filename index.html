@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="ARIA — Assistante de Raisonnement par l’Intelligence Artificielle" />
   <meta name="theme-color" content="#06141c" />
-  <title>ARIA — v1.10.0</title>
-  <link rel="stylesheet" href="style.css?v=1.10.0" />
-  <link rel="stylesheet" href="electrical.css?v=1.10.0" />
-  <link rel="stylesheet" href="rooms.css?v=1.10.0" />
+  <title>ARIA — v1.11.0</title>
+  <link rel="stylesheet" href="style.css?v=1.11.0" />
+  <link rel="stylesheet" href="electrical.css?v=1.11.0" />
+  <link rel="stylesheet" href="rooms.css?v=1.11.0" />
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
-  <script src="config.js?v=1.10.0"></script>
+  <script src="config.js?v=1.11.0"></script>
 </head>
 <body>
   <main id="app-shell">
@@ -27,7 +27,7 @@
         <p class="eyebrow">ASSISTANTE DE RAISONNEMENT PAR L’INTELLIGENCE ARTIFICIELLE</p>
         <div class="title-row">
           <h1>ARIA</h1>
-          <span id="version-label" class="version-badge">v1.10.0</span>
+          <span id="version-label" class="version-badge">v1.11.0</span>
         </div>
       </div>
       <div class="header-status">
@@ -992,8 +992,23 @@
               <span class="room-label">Bureau d’études détecté</span>
               <strong id="room-bureau-name">—</strong>
               <small id="room-bureau-profile">Profil non déterminé</small>
+              <div class="room-brain-persistence">
+                <span id="room-bureau-brain-status" data-state="warning">Profil détecté, sauvegarde BRAIN à vérifier.</span>
+                <span id="room-element-brain-status" data-state="warning">Stockage des codifications à vérifier.</span>
+              </div>
+              <div class="room-brain-actions">
+                <button id="save-room-bureau-profile" class="secondary compact" type="button">
+                  Valider le profil dans BRAIN
+                </button>
+                <button id="refresh-room-brain-status" class="ghost compact" type="button">
+                  Vérifier BRAIN
+                </button>
+              </div>
             </div>
-            <span id="room-bureau-confidence">0 %</span>
+            <div class="room-bureau-meta">
+              <span id="room-bureau-confidence">0 %</span>
+              <small id="room-core-version">Core —</small>
+            </div>
           </section>
 
           <section class="room-section">
@@ -1029,6 +1044,12 @@
               <span id="room-question-scope" class="room-question-scope"></span>
               <strong id="room-question-text"></strong>
               <p id="room-question-reason"></p>
+              <div
+                id="room-question-sources"
+                class="room-question-sources"
+                aria-label="Pages et preuves à contrôler"
+                hidden
+              ></div>
               <div id="room-question-options" class="room-question-options"></div>
               <div
                 id="room-question-learning-options"
@@ -1413,7 +1434,7 @@
         </div>
       </div>
       <p class="footer-technical">
-        ARIA Web v1.10.0 · HELOISE/NORAH · ATOMBIM · CPV · questions synchronisées
+        ARIA Web v1.11.0 · HELOISE/NORAH · ATOMBIM · CPV · questions synchronisées
       </p>
       <p class="footer-safety">
         Validation humaine requise avant toute action métier.
@@ -1795,6 +1816,6 @@
   </dialog>
 
   <noscript>JavaScript doit être activé pour utiliser ARIA.</noscript>
-  <script src="sketch.js?v=1.10.0"></script>
+  <script src="sketch.js?v=1.11.0"></script>
 </body>
 </html>

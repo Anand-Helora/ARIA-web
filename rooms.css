@@ -414,7 +414,7 @@
 .room-equipment-line span { color:var(--accent); font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:.76rem; overflow-wrap:anywhere; }
 .room-equipment-line small { color:var(--muted); }
 
-/* v1.10.0 — statut dynamique, cartes enrichies et fiche plein écran */
+/* v1.11.0 — statut dynamique, cartes enrichies et fiche plein écran */
 .room-intelligence-card[hidden],
 .room-analysis-empty[hidden],
 .room-analysis-progress[hidden],
@@ -1191,5 +1191,100 @@
 
   .room-card {
     transition: none;
+  }
+}
+
+/* v1.11.0 — traçabilité des questions et persistance BRAIN */
+.room-bureau-meta {
+  display: grid;
+  justify-items: end;
+  gap: 0.35rem;
+}
+
+.room-bureau-meta small {
+  color: var(--text-muted, #9bb7ba);
+}
+
+.room-brain-persistence {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+}
+
+.room-brain-persistence span {
+  display: block;
+  padding: 0.48rem 0.7rem;
+  border: 1px solid rgba(126, 224, 225, 0.22);
+  border-radius: 0.8rem;
+  background: rgba(3, 28, 34, 0.42);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.room-brain-persistence span[data-state="success"] {
+  border-color: rgba(91, 214, 155, 0.45);
+  background: rgba(35, 107, 71, 0.18);
+}
+
+.room-brain-persistence span[data-state="warning"] {
+  border-color: rgba(243, 190, 87, 0.42);
+  background: rgba(138, 90, 17, 0.16);
+}
+
+.room-brain-persistence span[data-state="error"] {
+  border-color: rgba(244, 125, 125, 0.48);
+  background: rgba(139, 31, 31, 0.18);
+}
+
+.room-brain-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+}
+
+.room-question-sources {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.55rem;
+  margin: 0.9rem 0;
+}
+
+.room-question-sources[hidden] {
+  display: none;
+}
+
+.room-question-source {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid rgba(126, 224, 225, 0.28);
+  border-radius: 0.9rem;
+  background: rgba(3, 28, 34, 0.52);
+}
+
+.room-question-source strong {
+  color: #a8eff0;
+  font-size: 0.84rem;
+}
+
+.room-question-source span {
+  color: var(--text-muted, #abc1c4);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+@media (max-width: 720px) {
+  .room-bureau-meta {
+    justify-items: start;
+  }
+
+  .room-brain-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .room-brain-actions button {
+    width: 100%;
   }
 }
